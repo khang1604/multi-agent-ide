@@ -1,0 +1,74 @@
+{
+  "name": "multi-agent-harness",
+  "displayName": "Multi Agent Harness",
+  "description": "Agent-First Multi-Agent Workspace Engine for Multi Agent IDE",
+  "version": "1.0.0",
+  "publisher": "multiagentide",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "multi-agent-swarm",
+          "title": "Agent Swarm",
+          "icon": "resources/agent-swarm.svg"
+        }
+      ]
+    },
+    "views": {
+      "multi-agent-swarm": [
+        {
+          "type": "webview",
+          "id": "multi-agent.swarmControlView",
+          "name": "Agent Swarm Control Center"
+        },
+        {
+          "type": "webview",
+          "id": "multi-agent.artifactsView",
+          "name": "Living Artifacts & Plans"
+        },
+        {
+          "type": "webview",
+          "id": "multi-agent.worktreeView",
+          "name": "Isolated Worktrees"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "multiAgent.newSession",
+        "title": "Multi Agent: Start New Swarm Session",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.approvePlan",
+        "title": "Multi Agent: Approve Current Plan",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.refreshWorktrees",
+        "title": "Multi Agent: Refresh Worktrees",
+        "category": "Multi Agent"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0"
+  }
+}
