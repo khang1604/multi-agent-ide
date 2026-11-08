@@ -114,6 +114,11 @@ def validate_report(value):
             raise ValueError('Invalid report subtasks')
     if 'handoff' in value:
         validate_delta(value['handoff'])
+
+    # Business Relevance Guardrail
+    from .relevance_guard import sanitize_agent_communication
+    value = sanitize_agent_communication(value)
+
     if value['outcome'] == 'blocked':
         value.pop('file_writes', None)
         raise TaskBlocked(value)

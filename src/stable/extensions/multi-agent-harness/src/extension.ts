@@ -8,6 +8,7 @@ import { SwarmControlProvider } from './views/SwarmControlProvider';
 import { DaemonBridge } from './daemon/DaemonBridge';
 import { AuditorDiagnosticsManager } from './auditor/AuditorDiagnostics';
 import { StorageLayout } from './storage/StorageLayout';
+import { IdeMcpServer } from './mcp/IdeMcpServer';
 
 export function activate(context: vscode.ExtensionContext) {
   const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
@@ -18,6 +19,13 @@ export function activate(context: vscode.ExtensionContext) {
   const daemonBridge = DaemonBridge.getInstance(rootPath);
   const auditorDiagMgr = AuditorDiagnosticsManager.getInstance(rootPath);
   context.subscriptions.push({ dispose: () => auditorDiagMgr.dispose() });
+
+  // Start native MCP Server over Unix Domain Socket for external CLI agents
+  const mcpServer = IdeMcpServer.getInstance(rootPath);
+  mcpServer.start().catch((err) => {
+    console.warn('[multi-agent-harness] IdeMcpServer start error:', err);
+  });
+  context.subscriptions.push({ dispose: () => mcpServer.stop() });
 
   // Initialize Daemon Bridge & start background status sync
   daemonBridge.init().then(() => {
@@ -247,4 +255,6 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   const daemonBridge = DaemonBridge.getInstance();
   daemonBridge.stopSync();
+  const mcpServer = IdeMcpServer.getInstance();
+  mcpServer.stop();
 }

@@ -958,10 +958,18 @@ button:hover {
 
     /* Antigravity-style Thinking Dropdown */
     .thinking-container {
-      border-left: 2px solid rgba(255, 255, 255, 0.15);
-      margin: 3px 0 4px 2px;
-      padding-left: 8px;
+      position: relative;
+      border-left: 1.5px solid rgba(255, 255, 255, 0.2);
+      border-top: 1.5px solid rgba(255, 255, 255, 0.2);
+      border-top-left-radius: 8px;
+      margin: 6px 0 6px 4px;
+      padding: 4px 0 2px 10px;
       font-size: 11px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .thinking-container.collapsed {
+      border-top-left-radius: 6px;
+      border-bottom-left-radius: 6px;
     }
     .thinking-container.collapsed .thinking-body {
       display: none;
@@ -970,72 +978,86 @@ button:hover {
       transform: rotate(-90deg);
     }
     .thinking-header {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       cursor: pointer;
       user-select: none;
-      color: var(--vscode-descriptionForeground, #888);
-      font-weight: 600;
-      margin-bottom: 3px;
+      color: #9da5b4;
+      font-weight: 500;
+      margin-bottom: 4px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.15s ease, color 0.15s ease;
     }
     .thinking-header:hover {
-      color: var(--vscode-foreground);
+      color: #fff;
+      background: rgba(255, 255, 255, 0.06);
     }
     .thinking-header .chevron {
-      transition: transform 0.15s ease;
-      font-size: 10px;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      font-size: 11px;
       display: inline-block;
+      color: #7d8590;
     }
     .thinking-body {
       display: flex;
       flex-direction: column;
       gap: 3px;
-      padding-top: 2px;
-      color: #aaa;
+      padding: 2px 0 4px 2px;
+      color: #adbac7;
     }
     .thinking-step {
       display: flex;
       align-items: center;
-      gap: 4px;
-      line-height: 1.4;
+      gap: 6px;
+      line-height: 1.5;
+      font-size: 11px;
       flex-wrap: wrap;
     }
     .step-action {
-      color: #777;
+      color: #768390;
+      font-size: 11px;
     }
     .step-target {
-      color: #ddd;
+      color: #cdd9e5;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+    }
+    .step-arrow {
+      color: #57606a;
+      font-size: 10px;
+      margin-left: 2px;
     }
     .step-badge {
-      font-size: 9px;
+      font-size: 9.5px;
       font-weight: 700;
-      padding: 0 4px;
-      border-radius: 2px;
-      line-height: 14px;
-      margin: 0 2px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      line-height: 12px;
+      letter-spacing: 0.3px;
       display: inline-block;
     }
     .badge-ts { background: #3178c6; color: #fff; }
     .badge-js { background: #f7df1e; color: #000; }
     .badge-css { background: #264de4; color: #fff; }
     .badge-html { background: #e34c26; color: #fff; }
-    .badge-json { background: #4caf50; color: #fff; }
+    .badge-json { background: #238636; color: #fff; }
     .badge-md { background: #0891b2; color: #fff; }
-    .badge-sec { background: #9333ea; color: #fff; }
+    .badge-sec { background: #8957e5; color: #fff; }
 
     .step-diff {
-      font-size: 10px;
-      font-family: monospace;
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
       margin-left: 4px;
     }
     .diff-add { color: #3fb950; font-weight: 600; }
     .diff-del { color: #f85149; font-weight: 600; }
     .thinking-footer {
-      color: #666;
-      font-size: 10px;
-      margin-top: 3px;
-      font-style: italic;
+      color: #768390;
+      font-size: 10.5px;
+      margin-top: 4px;
+      font-style: normal;
     }
 
     /* Contextual floating action */
@@ -1370,11 +1392,11 @@ button:hover {
 
       if (thinking && thinking.steps) {
         const thinkContainer = document.createElement('div');
-        thinkContainer.className = 'thinking-container';
+        thinkContainer.className = 'thinking-container collapsed';
 
         const thinkHeader = document.createElement('div');
         thinkHeader.className = 'thinking-header';
-        thinkHeader.innerHTML = '<span class="chevron">⌵</span><span>Thinking</span>';
+        thinkHeader.innerHTML = '<span class="thinking-title">Thinking (' + (thinking.durationSec || 1) + 's)</span><span class="chevron">⌵</span>';
         thinkHeader.onclick = () => thinkContainer.classList.toggle('collapsed');
 
         const thinkBody = document.createElement('div');
@@ -1385,16 +1407,18 @@ button:hover {
           stepDiv.className = 'thinking-step';
           const badgeHtml = s.badge ? '<span class="step-badge badge-' + s.badge.toLowerCase() + '">' + s.badge + '</span>' : '';
           const diffHtml = s.diffStat ? '<span class="step-diff"><span class="diff-add">+' + s.diffStat.add + '</span> <span class="diff-del">-' + s.diffStat.del + '</span></span>' : '';
+          const arrowHtml = s.kind === 'ran' ? '<span class="step-arrow">&gt;</span>' : '';
           stepDiv.innerHTML = '<span class="step-action">' + (s.kind.charAt(0).toUpperCase() + s.kind.slice(1)) + '</span>' +
             badgeHtml +
             '<span class="step-target">' + escapeHtml(s.text) + '</span>' +
-            diffHtml;
+            diffHtml +
+            arrowHtml;
           thinkBody.appendChild(stepDiv);
         });
 
         const thinkFooter = document.createElement('div');
         thinkFooter.className = 'thinking-footer';
-        thinkFooter.innerText = 'Thought for ' + thinking.durationSec + 's';
+        thinkFooter.innerText = 'Thinking for ' + (thinking.durationSec || 1) + 's';
         thinkBody.appendChild(thinkFooter);
 
         thinkContainer.appendChild(thinkHeader);
@@ -1572,7 +1596,7 @@ button:hover {
 
         const thinkHeader = document.createElement('div');
         thinkHeader.className = 'thinking-header';
-        thinkHeader.innerHTML = '<span class="chevron">⌵</span><span class="thinking-title">Thinking...</span>';
+        thinkHeader.innerHTML = '<span class="thinking-title">Thinking</span><span class="chevron">⌵</span>';
         thinkHeader.onclick = () => thinkContainer.classList.toggle('collapsed');
 
         const thinkBody = document.createElement('div');
@@ -1605,10 +1629,12 @@ button:hover {
             stepDiv.className = 'thinking-step';
             const badgeHtml = step.badge ? '<span class="step-badge badge-' + step.badge.toLowerCase() + '">' + step.badge + '</span>' : '';
             const diffHtml = step.diffStat ? '<span class="step-diff"><span class="diff-add">+' + step.diffStat.add + '</span> <span class="diff-del">-' + step.diffStat.del + '</span></span>' : '';
+            const arrowHtml = step.kind === 'ran' ? '<span class="step-arrow">&gt;</span>' : '';
             stepDiv.innerHTML = '<span class="step-action">' + (step.kind.charAt(0).toUpperCase() + step.kind.slice(1)) + '</span>' +
               badgeHtml +
               '<span class="step-target">' + escapeHtml(step.text) + '</span>' +
-              diffHtml;
+              diffHtml +
+              arrowHtml;
             body.insertBefore(stepDiv, footer);
             footer.innerText = 'Thinking for ' + msg.elapsedSec + 's...';
             scrollToBottom();
@@ -1619,8 +1645,8 @@ button:hover {
         if (wrap) {
           const footer = wrap.querySelector('.thinking-footer');
           const title = wrap.querySelector('.thinking-title');
-          if (title) title.innerText = 'Thinking';
-          if (footer) footer.innerText = 'Thought for ' + msg.durationSec + 's';
+          if (title) title.innerText = 'Thinking (' + (msg.durationSec || 1) + 's)';
+          if (footer) footer.innerText = 'Thinking for ' + (msg.durationSec || 1) + 's';
           const textDiv = wrap.querySelector('.bubble-text');
           if (textDiv) {
             textDiv.innerText = msg.finalMessage;

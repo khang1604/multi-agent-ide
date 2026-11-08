@@ -33,7 +33,14 @@ class StorageLayout {
     static getActivityStreamFile(projectRoot) {
         return path.join(StorageLayout.getBrainDir(projectRoot), 'SWARM_ACTIVITY.md');
     }
+    static getIpcSocketPath() {
+        if (process.platform === 'win32') {
+            return '\\\\.\\pipe\\multi-agent-ide-ipc';
+        }
+        return path.join(StorageLayout.globalRoot, 'ipc.sock');
+    }
     static async ensureDirectories(projectRoot) {
+        await fs.mkdir(StorageLayout.globalRoot, { recursive: true });
         await fs.mkdir(StorageLayout.getArtifactsDir(projectRoot), { recursive: true });
         await fs.mkdir(StorageLayout.getWorktreesDir(projectRoot), { recursive: true });
     }
