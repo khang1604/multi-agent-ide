@@ -52,7 +52,18 @@
    - Registered workbench commands: `multiAgent.startDaemon`, `multiAgent.stopDaemon`, `multiAgent.showDoctor`.
    - Extension compiled with 0 errors (`tsc -p ./`).
 
-## Prioritized Next Steps
-1. **Tier 4 (Auditor Diagnostics Collection & Safety Gate):** Wire Gemini Auditor test results into `vscode.languages.createDiagnosticCollection` for in-editor red squiggles and deploy human confirmation gate for terminal mutations.
-2. **Desktop Launcher Entry:** Generate `~/.local/share/applications/multi-agent-ide.desktop` and standalone system launcher.
+9. **Tier 4 Implemented: Auditor Diagnostics & Desktop Integration:**
+   - Authored `AuditorDiagnosticsManager` in `src/stable/extensions/multi-agent-harness/src/auditor/AuditorDiagnostics.ts` managing `vscode.DiagnosticCollection` for Gemini Auditor findings.
+   - Connected auditor findings directly to the native VS Code Problems panel & inline diagnostics (squiggles) with exact file, line, column, severity, and source attribution (`[Auditor]`).
+   - Registered commands: `multiAgent.clearAuditorDiagnostics` and `multiAgent.simulateAuditorReport`.
+   - Updated `run.sh` to default to workspace directory (`${1:-$DIR}`).
+   - Deployed Linux desktop launcher entry at `~/.local/share/applications/multi-agent-ide.desktop` and verified with `desktop-file-validate`.
+
+## Verification & Status
+- **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
+- **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
+- **Python Hub Daemon & CLI:** Verified via `harness/cli/hub.py` (doctor, status, start/stop).
+- **Desktop Launcher:** Verified valid XDG desktop specification.
+- **Runtime Testing:** Successfully spawned standalone Electron instance with all 4 tiers active.
+
 

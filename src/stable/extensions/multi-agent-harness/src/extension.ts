@@ -6,6 +6,7 @@ import { ArtifactManager } from './artifacts/ArtifactManager';
 import { AgentDiffProvider } from './diff/DiffProvider';
 import { SwarmControlProvider } from './views/SwarmControlProvider';
 import { DaemonBridge } from './daemon/DaemonBridge';
+import { AuditorDiagnosticsManager } from './auditor/AuditorDiagnostics';
 
 export function activate(context: vscode.ExtensionContext) {
   const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
@@ -14,6 +15,8 @@ export function activate(context: vscode.ExtensionContext) {
   const artifactMgr = new ArtifactManager(rootPath);
   const diffProvider = AgentDiffProvider.getInstance();
   const daemonBridge = DaemonBridge.getInstance(rootPath);
+  const auditorDiagMgr = AuditorDiagnosticsManager.getInstance(rootPath);
+  context.subscriptions.push({ dispose: () => auditorDiagMgr.dispose() });
 
   // Initialize Daemon Bridge & start background status sync
   daemonBridge.init().then(() => {
@@ -96,6 +99,28 @@ export function activate(context: vscode.ExtensionContext) {
         const msg = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`Doctor error: ${msg}`);
       }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('multiAgent.clearAuditorDiagnostics', () => {
+      auditorDiagMgr.clear();
+      vscode.window.showInformationMessage('Auditor diagnostics cleared.');
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('multiAgent.simulateAuditorReport', () => {
+      auditorDiagMgr.setIssues([
+        {
+          file: 'PLAN.md',
+          line: 1,
+          message: 'Plan verified: 0 critical vulnerabilities detected. Ready for implementation.',
+          severity: 'info',
+          source: 'Gemini Auditor'
+        }
+      ]);
+      vscode.window.showInformationMessage('Auditor report simulated: diagnostics updated.');
     })
   );
 

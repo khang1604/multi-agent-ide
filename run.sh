@@ -6,7 +6,7 @@ export PATH="$HOME/.local/node24/bin:$PATH"
 unset ELECTRON_RUN_AS_NODE
 export VSCODE_SKIP_PRELAUNCH=1
 
-TARGET="${1:-/home/nguyenkhang/Project/mahub}"
+TARGET="${1:-$DIR}"
 BINARY="$DIR/vscode/.build/electron/multi-agent-ide"
 APP_ROOT="$DIR/vscode"
 

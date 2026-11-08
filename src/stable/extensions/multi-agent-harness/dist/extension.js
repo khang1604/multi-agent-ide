@@ -10,12 +10,15 @@ const ArtifactManager_1 = require("./artifacts/ArtifactManager");
 const DiffProvider_1 = require("./diff/DiffProvider");
 const SwarmControlProvider_1 = require("./views/SwarmControlProvider");
 const DaemonBridge_1 = require("./daemon/DaemonBridge");
+const AuditorDiagnostics_1 = require("./auditor/AuditorDiagnostics");
 function activate(context) {
     const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
     const worktreeMgr = new WorktreeManager_1.WorktreeManager(rootPath);
     const artifactMgr = new ArtifactManager_1.ArtifactManager(rootPath);
     const diffProvider = DiffProvider_1.AgentDiffProvider.getInstance();
     const daemonBridge = DaemonBridge_1.DaemonBridge.getInstance(rootPath);
+    const auditorDiagMgr = AuditorDiagnostics_1.AuditorDiagnosticsManager.getInstance(rootPath);
+    context.subscriptions.push({ dispose: () => auditorDiagMgr.dispose() });
     // Initialize Daemon Bridge & start background status sync
     daemonBridge.init().then(() => {
         daemonBridge.startSync(3000);
@@ -81,6 +84,22 @@ function activate(context) {
             const msg = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Doctor error: ${msg}`);
         }
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.clearAuditorDiagnostics', () => {
+        auditorDiagMgr.clear();
+        vscode.window.showInformationMessage('Auditor diagnostics cleared.');
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.simulateAuditorReport', () => {
+        auditorDiagMgr.setIssues([
+            {
+                file: 'PLAN.md',
+                line: 1,
+                message: 'Plan verified: 0 critical vulnerabilities detected. Ready for implementation.',
+                severity: 'info',
+                source: 'Gemini Auditor'
+            }
+        ]);
+        vscode.window.showInformationMessage('Auditor report simulated: diagnostics updated.');
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.newSession', async () => {
         const input = await vscode.window.showInputBox({

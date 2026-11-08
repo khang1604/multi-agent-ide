@@ -84,6 +84,16 @@
         "command": "multiAgent.showDoctor",
         "title": "Multi Agent: Run Environment Doctor",
         "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.clearAuditorDiagnostics",
+        "title": "Multi Agent: Clear Auditor Diagnostics",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.simulateAuditorReport",
+        "title": "Multi Agent: Simulate Auditor Check",
+        "category": "Multi Agent"
       }
     ],
     "configuration": {
