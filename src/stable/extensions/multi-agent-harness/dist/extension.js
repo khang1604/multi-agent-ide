@@ -122,11 +122,12 @@ function activate(context) {
         }
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.approvePlan', async () => {
-        vscode.window.showInformationMessage('Plan approved! Swarm is spawning isolated Git Worktree...');
+        vscode.window.showInformationMessage('Plan approved! Swarm is executing plan and scaffolding project...');
         try {
             const taskId = `task-${Date.now()}`;
             const info = await worktreeMgr.createWorktree(taskId);
             vscode.window.showInformationMessage(`Worktree created at: ${info.worktreePath} (Branch: ${info.branch})`);
+            await swarmProvider.handleApprovePlan();
         }
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -194,11 +195,18 @@ function activate(context) {
             vscode.window.showErrorMessage(`Cockpit setup error: ${msg}`);
         }
     }));
-    // Auto-reveal Swarm Chat & Cockpit Layout on launch
-    setTimeout(() => {
-        vscode.commands.executeCommand('multi-agent.swarmControlView.focus').then(undefined, () => { });
-        vscode.commands.executeCommand('multiAgent.setupCockpitLayout').then(undefined, () => { });
-    }, 1200);
+    // Auto-reveal Swarm Chat (Secondary Sidebar on the right) & Cockpit Layout on launch
+    setTimeout(async () => {
+        try {
+            await vscode.commands.executeCommand('workbench.action.openSecondarySidebar');
+            await vscode.commands.executeCommand('multi-agent.swarmControlView.focus');
+        }
+        catch { }
+        try {
+            await vscode.commands.executeCommand('multiAgent.setupCockpitLayout');
+        }
+        catch { }
+    }, 1000);
     console.log('Multi Agent IDE Harness Core Extension activated.');
 }
 function deactivate() {
