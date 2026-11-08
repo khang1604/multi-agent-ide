@@ -125,8 +125,9 @@
     - HUD Swimlane Capsules: Redesigned into borderless modern pills (`border-radius: 20px`, `background: rgba(255, 255, 255, 0.035)`) with soft ambient color washes on active state.
     - Floating Input Card: Antigravity-inspired floating capsule with `12px` radius, subtle `0.08` hairline border, focus glow ring, and rounded `#2563eb` send button.
 
-20. **Release v0.1.0-beta Published:**
-    - Git tag `v0.1-beta` and GitHub Release `v0.1.0-beta` published at `https://github.com/khang1604/multi-agent-ide/releases/tag/v0.1.0-beta`.
+20. **Releases Published:**
+    - Git tag `v0.1.0-beta` and GitHub Release `v0.1.0-beta`.
+    - Git tag `v0.1.1-beta` and GitHub Release `v0.1.1-beta` published at `https://github.com/khang1604/multi-agent-ide/releases/tag/v0.1.1-beta`.
 
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
