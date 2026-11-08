@@ -318,19 +318,24 @@ export function activate(context: vscode.ExtensionContext) {
         const isInstalled = doctor?.providers?.copilot?.available === true;
         if (!isInstalled) {
           const action = await vscode.window.showWarningMessage(
-            'GitHub CLI (gh) is not installed. Please install it with: sudo apt install gh, then run gh auth login.',
+            'GitHub Copilot CLI (@github/copilot) is not installed. Please install it with: npm install -g --prefix ~/.local @github/copilot',
+            'Install in Terminal',
             'Copy Install Command'
           );
-          if (action === 'Copy Install Command') {
-            await vscode.env.clipboard.writeText('sudo apt install -y gh && gh auth login');
+          if (action === 'Install in Terminal') {
+            const term = vscode.window.createTerminal({ name: 'Install GitHub Copilot CLI' });
+            term.show();
+            term.sendText('npm install -g --prefix ~/.local @github/copilot && copilot login');
+          } else if (action === 'Copy Install Command') {
+            await vscode.env.clipboard.writeText('npm install -g --prefix ~/.local @github/copilot && copilot login');
             vscode.window.showInformationMessage('Copied install command to clipboard.');
           }
           return;
         }
-        const term = vscode.window.createTerminal({ name: 'Agent CLI: GitHub Auth' });
+        const term = vscode.window.createTerminal({ name: 'Agent CLI: GitHub Copilot' });
         term.show();
-        term.sendText('gh auth login');
-        vscode.window.showInformationMessage('Opened GitHub CLI authentication in terminal.');
+        term.sendText('copilot login');
+        vscode.window.showInformationMessage('Opened GitHub Copilot CLI authentication in terminal.');
       }
     }),
 
