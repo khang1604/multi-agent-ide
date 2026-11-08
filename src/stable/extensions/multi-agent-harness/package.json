@@ -17,7 +17,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
-      "secondarySidebar": [
+      "activitybar": [
         {
           "id": "multi-agent-swarm",
           "title": "Agent Swarm",
@@ -30,7 +30,7 @@
         {
           "type": "webview",
           "id": "multi-agent.swarmControlView",
-          "name": "Agent Swarm Control Center"
+          "name": "Swarm Chat & Control Center"
         },
         {
           "type": "webview",

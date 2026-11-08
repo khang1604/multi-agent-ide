@@ -38,8 +38,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // 3. Register Status Bar HUD
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'workbench.view.extension.multi-agent-swarm';
-  statusBarItem.tooltip = 'Click to open Multi-Agent Swarm Control Center';
+  statusBarItem.command = 'multi-agent.swarmControlView.focus';
+  statusBarItem.tooltip = 'Click to open Multi-Agent Swarm Chat & Control Center';
 
   const updateStatusBar = (daemon: 'running' | 'stopped', workflowCount = 0) => {
     if (daemon === 'running') {
@@ -219,6 +219,12 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
+
+  // Auto-reveal Swarm Chat & Cockpit Layout on launch
+  setTimeout(() => {
+    vscode.commands.executeCommand('multi-agent.swarmControlView.focus').then(undefined, () => {});
+    vscode.commands.executeCommand('multiAgent.setupCockpitLayout').then(undefined, () => {});
+  }, 1200);
 
   console.log('Multi Agent IDE Harness Core Extension activated.');
 }
