@@ -17,7 +17,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "multi-agent-swarm",
           "title": "Agent Swarm",
@@ -70,7 +70,17 @@
         "title": "Multi Agent: Reset Cockpit 3-Column Layout",
         "category": "Multi Agent"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Multi Agent IDE",
+      "properties": {
+        "workbench.agentCockpit.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable native 3-column Agent Cockpit layout on launch"
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",

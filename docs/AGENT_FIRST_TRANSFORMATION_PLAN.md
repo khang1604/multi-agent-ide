@@ -114,3 +114,4 @@ To ensure this Agent-First IDE remains easily upgradeable to future Code-OSS ver
 2. **Patch Extraction:** All changes to `vscode/` are backed up as numbered patches in `patches/` (`patches/90-*.patch`).
 3. **Single Source of Truth:** `src/stable/extensions/multi-agent-harness` is symlinked to `vscode/extensions/multi-agent-harness`.
 4. **Graphify Synchronization:** `graphify update .` is executed after each milestone to keep the knowledge graph current.
+

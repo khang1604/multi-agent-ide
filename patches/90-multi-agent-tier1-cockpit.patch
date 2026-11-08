@@ -1,0 +1,41 @@
+diff --git a/src/vs/workbench/browser/layout.ts b/src/vs/workbench/browser/layout.ts
+index 75f9238f..c9bbd33e 100644
+--- a/src/vs/workbench/browser/layout.ts
++++ b/src/vs/workbench/browser/layout.ts
+@@ -51,6 +51,7 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
+ import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+ import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+ import { localize } from '../../nls.js';
++import { MultiAgentCockpit } from '../contrib/multiAgent/browser/multiAgentCockpit.js';
+ 
+ //#region Layout Implementation
+ 
+@@ -847,6 +848,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
+ 			}
+ 		}
+ 
++		// [MULTI-AGENT-IDE] Auto-open Secondary Sidebar for Agent Swarm HUD (Tier 1)
++		if (MultiAgentCockpit.isEnabled(this.configurationService) && this.storageService.isNew(StorageScope.WORKSPACE)) {
++			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
++			this.state.initialization.views.containerToRestore.auxiliaryBar = 'workbench.view.extension.multi-agent-swarm';
++		}
++		// [/MULTI-AGENT-IDE]
++
+ 		// Window border
+ 		this.updateWindowBorder(true);
+ 	}
+@@ -981,6 +989,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
+ 			return { filesToOpenOrCreate, filesToDiff, filesToMerge };
+ 		}
+ 
++		// [MULTI-AGENT-IDE] Cockpit Layout (Tier 1)
++		const cockpitState = MultiAgentCockpit.getInitialEditorsState(this.configurationService, this.contextService, this.storageService, this.editorGroupService);
++		if (cockpitState) {
++			this._openedDefaultEditors = true;
++			return cockpitState as unknown as IInitialEditorsState;
++		}
++		// [/MULTI-AGENT-IDE]
++
+ 		return undefined;
+ 	}
+ 
