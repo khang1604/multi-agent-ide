@@ -758,17 +758,7 @@ button:hover {
     let historyContent = '';
     const visibleMessages = this.chatHistory.filter(m => m.role !== 'system');
     if (visibleMessages.length === 0) {
-      historyContent = `
-        <div class="empty-state">
-          <div class="empty-icon">
-            <svg width="26" height="26" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm-.75 2.75v3.5a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-1.5 0zM8 10.5a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75z"/>
-            </svg>
-          </div>
-          <div class="empty-title">Agent Swarm Ready</div>
-          <div class="empty-desc">Ask anything or describe what to build to orchestrate Architect, Worker, and Auditor.</div>
-        </div>
-      `;
+      historyContent = '';
     } else {
       historyContent = visibleMessages.map(m => {
         const thinkingHtml = m.thinking ? this.renderThinkingHtml(m.thinking) : '';
@@ -805,7 +795,7 @@ button:hover {
     }
     .top-bar {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       margin-bottom: 6px;
       padding-bottom: 4px;
@@ -1232,10 +1222,6 @@ button:hover {
 </head>
 <body>
   <div class="top-bar">
-    <div class="header-title">
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a3 3 0 0 0-3 3v.5H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V4a3 3 0 0 0-3-3zm-1.5 3.5a1.5 1.5 0 0 1 3 0V4h-3v-.5zM5 8.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
-      <span>Swarm</span>
-    </div>
     <div class="top-actions">
       <button id="newSessionBtn" class="icon-btn" title="New Session (+)">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/></svg>
@@ -1370,11 +1356,7 @@ button:hover {
     }
 
     function renderEmptyState() {
-      chatContainer.innerHTML = '<div class="empty-state">' +
-        '<div class="empty-icon"><svg width="26" height="26" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm-.75 2.75v3.5a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-1.5 0zM8 10.5a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75z"/></svg></div>' +
-        '<div class="empty-title">Agent Swarm Ready</div>' +
-        '<div class="empty-desc">Ask anything or describe what to build to orchestrate Architect, Worker, and Auditor.</div>' +
-        '</div>';
+      chatContainer.innerHTML = '';
     }
 
     function appendMessage(sender, role, text, time, thinking) {
