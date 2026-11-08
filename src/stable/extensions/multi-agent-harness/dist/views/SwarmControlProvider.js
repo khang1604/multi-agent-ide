@@ -508,7 +508,7 @@ class SwarmControlProvider {
                 step,
                 elapsedSec: Math.max(1, Math.round((Date.now() - startTime) / 1000))
             });
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 450));
         }
         const totalDurationSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
         const statsCardTsx = `import React from 'react';
@@ -1021,7 +1021,7 @@ export default function App() {
                 step,
                 elapsedSec: Math.max(1, Math.round((Date.now() - startTime) / 1000))
             });
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 450));
         }
         const totalDurationSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
         const compContent = isSettings
@@ -1163,7 +1163,7 @@ export default function UserProfile() {
                 step,
                 elapsedSec: Math.max(1, Math.round((Date.now() - startTime) / 1000))
             });
-            await new Promise(r => setTimeout(r, 220));
+            await new Promise(r => setTimeout(r, 450));
         }
         const totalDurationSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
         // File contents
@@ -1553,6 +1553,114 @@ button:hover {
       border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
       flex-shrink: 0;
       height: 26px;
+    }
+
+    /* Swarm Agent Swimlanes */
+    .swarm-swimlanes {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .agent-pill-card {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 4px 6px;
+      cursor: default;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      min-width: 0;
+    }
+    .agent-pill-card .pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #484f58;
+      flex-shrink: 0;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .agent-pill-card .pill-info {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      line-height: 1.15;
+    }
+    .agent-pill-card .pill-role {
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      color: #8b949e;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .agent-pill-card .pill-status {
+      font-size: 7.5px;
+      color: #484f58;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+
+    /* Active States with Glow & Pulsing */
+    .agent-pill-card.planning {
+      background: rgba(56, 139, 253, 0.12);
+      border-color: rgba(56, 139, 253, 0.45);
+      box-shadow: 0 0 8px rgba(56, 139, 253, 0.2);
+    }
+    .agent-pill-card.planning .pill-dot {
+      background: #58a6ff;
+      box-shadow: 0 0 6px #58a6ff;
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .agent-pill-card.planning .pill-role {
+      color: #58a6ff;
+    }
+    .agent-pill-card.planning .pill-status {
+      color: #79c0ff;
+    }
+
+    .agent-pill-card.executing {
+      background: rgba(210, 153, 34, 0.12);
+      border-color: rgba(210, 153, 34, 0.45);
+      box-shadow: 0 0 8px rgba(210, 153, 34, 0.2);
+    }
+    .agent-pill-card.executing .pill-dot {
+      background: #d29922;
+      box-shadow: 0 0 6px #d29922;
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .agent-pill-card.executing .pill-role {
+      color: #e3b341;
+    }
+    .agent-pill-card.executing .pill-status {
+      color: #f0883e;
+    }
+
+    .agent-pill-card.reviewing {
+      background: rgba(46, 160, 67, 0.12);
+      border-color: rgba(46, 160, 67, 0.45);
+      box-shadow: 0 0 8px rgba(46, 160, 67, 0.2);
+    }
+    .agent-pill-card.reviewing .pill-dot {
+      background: #3fb950;
+      box-shadow: 0 0 6px #3fb950;
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .agent-pill-card.reviewing .pill-role {
+      color: #3fb950;
+    }
+    .agent-pill-card.reviewing .pill-status {
+      color: #56d364;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.65; }
     }
     .header-title {
       font-weight: 700;
@@ -2071,6 +2179,31 @@ button:hover {
     </div>
   </div>
 
+  <!-- Swarm Agent Swimlanes (Live Teamwork HUD) -->
+  <div id="swarmSwimlanes" class="swarm-swimlanes">
+    <div id="swimlane-architect" class="agent-pill-card idle" title="Lead Architect: Google Antigravity / Claude">
+      <div class="pill-dot"></div>
+      <div class="pill-info">
+        <span class="pill-role">🏛️ ARCHITECT</span>
+        <span class="pill-status">IDLE</span>
+      </div>
+    </div>
+    <div id="swimlane-worker" class="agent-pill-card idle" title="Worker Agent: OpenAI Codex">
+      <div class="pill-dot"></div>
+      <div class="pill-info">
+        <span class="pill-role">⚡ WORKER</span>
+        <span class="pill-status">IDLE</span>
+      </div>
+    </div>
+    <div id="swimlane-auditor" class="agent-pill-card idle" title="Security & QA Auditor: Gemini Auditor">
+      <div class="pill-dot"></div>
+      <div class="pill-info">
+        <span class="pill-role">🛡️ AUDITOR</span>
+        <span class="pill-status">IDLE</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Agent Config Drawer -->
   <div id="configDrawer" class="config-drawer" style="display: none;">
     <div class="config-header">
@@ -2543,8 +2676,25 @@ button:hover {
             stagingBar.style.display = 'none';
           }
         }
-      } else if (msg.type === 'updateAgents') {
-        // Active agent indicators update safely
+      } else if (msg.type === 'updateAgents' && Array.isArray(msg.agents)) {
+        msg.agents.forEach(agent => {
+          let cardId = '';
+          if (agent.id === 'agent-architect') cardId = 'swimlane-architect';
+          else if (agent.id === 'agent-coder') cardId = 'swimlane-worker';
+          else if (agent.id === 'agent-auditor') cardId = 'swimlane-auditor';
+
+          if (cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+              const state = (agent.state || 'idle').toLowerCase();
+              card.className = 'agent-pill-card ' + state;
+              const statusSpan = card.querySelector('.pill-status');
+              if (statusSpan) {
+                statusSpan.textContent = state.toUpperCase();
+              }
+            }
+          }
+        });
       } else if (msg.type === 'daemonUpdate') {
         currentDaemonState = msg.daemon;
         if (daemonBtn) {
