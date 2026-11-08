@@ -20,6 +20,10 @@ export class StorageLayout {
     return path.join(StorageLayout.getBrainDir(projectRoot), 'artifacts');
   }
 
+  public static getStagingDir(projectRoot: string): string {
+    return path.join(StorageLayout.getBrainDir(projectRoot), 'staging');
+  }
+
   public static getWorktreesDir(projectRoot: string): string {
     return path.join(StorageLayout.globalRoot, 'worktrees', StorageLayout.getProjectSlug(projectRoot));
   }

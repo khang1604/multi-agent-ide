@@ -94,21 +94,6 @@ export class AgentMultiDiffContribution extends Disposable implements IWorkbench
 		super();
 		const resolver = instantiationService.createInstance(AgentMultiDiffSourceResolver);
 		this._register(multiDiffSourceResolverService.registerResolver(resolver));
-
-		// Auto-dock native Multi-Diff into Column 2 when Cockpit is enabled
-		editorGroupsService.whenRestored.then(() => {
-			if (MultiAgentCockpit.isEnabled(configurationService)) {
-				const groups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
-				if (groups.length >= 2) {
-					const column2Group = groups[1];
-					editorService.openEditor({
-						label: 'Continuous Multi-Diff Staging',
-						multiDiffSource: AgentMultiDiffSourceResolver.getMultiDiffSourceUri(),
-						options: { pinned: true, preserveFocus: true }
-					}, column2Group);
-				}
-			}
-		});
 	}
 }
 
@@ -139,5 +124,40 @@ export class OpenAgentMultiDiffEditorAction extends Action2 {
 			multiDiffSource,
 			options: { pinned: true, preserveFocus: false }
 		}, targetGroup);
+	}
+}
+
+/**
+ * Command action to update diff entries dynamically in Continuous Multi-Diff Staging
+ */
+export class UpdateAgentMultiDiffEntriesAction extends Action2 {
+	static readonly ID = 'workbench.action.multiAgent.updateDiffEntries';
+
+	constructor() {
+		super({
+			id: UpdateAgentMultiDiffEntriesAction.ID,
+			title: localize2('updateDiffEntries', 'Multi Agent: Update Continuous Diff Entries'),
+			f1: false
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, args?: { entries?: { originalUri?: string; modifiedUri: string; title?: string }[]; label?: string }): Promise<void> {
+		const resolver = AgentMultiDiffSourceResolver.getInstance();
+		if (!resolver) {
+			return;
+		}
+
+		if (!args || !args.entries || args.entries.length === 0) {
+			resolver.updateDiffItems([], args?.label ?? 'Continuous Multi-Diff Staging');
+			return;
+		}
+
+		const items: MultiDiffEditorItem[] = args.entries.map(e => {
+			const orig = e.originalUri ? URI.file(e.originalUri) : undefined;
+			const mod = URI.file(e.modifiedUri);
+			return new MultiDiffEditorItem(orig, mod, orig ?? mod, e.title);
+		});
+
+		resolver.updateDiffItems(items, args.label ?? 'Continuous Multi-Diff Staging');
 	}
 }

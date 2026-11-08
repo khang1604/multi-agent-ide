@@ -5,6 +5,7 @@ exports.deactivate = deactivate;
 const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const WorktreeManager_1 = require("./worktree/WorktreeManager");
 const ArtifactManager_1 = require("./artifacts/ArtifactManager");
 const DiffProvider_1 = require("./diff/DiffProvider");
@@ -204,15 +205,42 @@ function activate(context) {
             vscode.window.showErrorMessage(`Cockpit setup error: ${msg}`);
         }
     }));
-    // Auto-reveal Swarm Chat (Secondary Sidebar on the right) & Cockpit Layout on launch
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.focusLayout', async () => {
+        await vscode.commands.executeCommand('vscode.setEditorLayout', {
+            orientation: 0,
+            groups: [{ size: 1.0 }],
+        });
+    }), vscode.commands.registerCommand('multiAgent.openPlan', async () => {
+        const planPath = StorageLayout_1.StorageLayout.getPlanFile(rootPath);
+        await StorageLayout_1.StorageLayout.ensureDirectories(rootPath);
+        if (!fsSync.existsSync(planPath)) {
+            await fs.writeFile(planPath, '# Living PLAN.md\n\n> Multi-Agent Execution Plan\n', 'utf-8');
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
+        await vscode.window.showTextDocument(doc, { preview: false });
+    }), vscode.commands.registerCommand('multiAgent.openDiff', async () => {
+        try {
+            await vscode.commands.executeCommand('workbench.action.multiAgent.openContinuousDiff');
+        }
+        catch {
+            const diffPath = StorageLayout_1.StorageLayout.getDiffStagingFile(rootPath);
+            const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(diffPath));
+            await vscode.window.showTextDocument(doc, { preview: false });
+        }
+    }), vscode.commands.registerCommand('multiAgent.openActivity', async () => {
+        const actPath = StorageLayout_1.StorageLayout.getActivityStreamFile(rootPath);
+        await StorageLayout_1.StorageLayout.ensureDirectories(rootPath);
+        if (!fsSync.existsSync(actPath)) {
+            await fs.writeFile(actPath, '# Swarm Activity Stream\n', 'utf-8');
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(actPath));
+        await vscode.window.showTextDocument(doc, { preview: false });
+    }));
+    // Auto-reveal Swarm Chat (Secondary Sidebar on the right) on launch without forcing 3-column clutter
     setTimeout(async () => {
         try {
             await vscode.commands.executeCommand('workbench.action.openSecondarySidebar');
             await vscode.commands.executeCommand('multi-agent.swarmControlView.focus');
-        }
-        catch { }
-        try {
-            await vscode.commands.executeCommand('multiAgent.setupCockpitLayout');
         }
         catch { }
     }, 1000);

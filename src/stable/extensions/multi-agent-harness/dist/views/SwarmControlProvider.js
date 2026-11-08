@@ -15,6 +15,7 @@ class SwarmControlProvider {
     chatHistory = [];
     historyFile;
     lastUserPrompt = '';
+    stagedFiles = [];
     agents = [
         {
             id: 'agent-architect',
@@ -112,6 +113,12 @@ class SwarmControlProvider {
                     if (data.filePath) {
                         await this.openFileInEditor(data.filePath);
                     }
+                    break;
+                case 'onAcceptStaging':
+                    await this.handleAcceptStaging();
+                    break;
+                case 'onRejectStaging':
+                    await this.handleRejectStaging();
                     break;
                 case 'onApprovePlan':
                     await this.handleApprovePlan();
@@ -322,6 +329,139 @@ class SwarmControlProvider {
         }
         else {
             await this.executeFeatureScaffold(targetRoot, prompt || 'Implement feature update');
+        }
+    }
+    async stageFilesAndOpenDiff(targetRoot, files) {
+        const stagingDir = StorageLayout_1.StorageLayout.getStagingDir(targetRoot);
+        if (fsSync.existsSync(stagingDir)) {
+            await fs.rm(stagingDir, { recursive: true, force: true });
+        }
+        await fs.mkdir(stagingDir, { recursive: true });
+        this.stagedFiles = [];
+        for (const item of files) {
+            const stagedPath = path.join(stagingDir, item.relPath);
+            await fs.mkdir(path.dirname(stagedPath), { recursive: true });
+            await fs.writeFile(stagedPath, item.content, 'utf-8');
+            const origPath = path.join(targetRoot, item.relPath);
+            this.stagedFiles.push({
+                relPath: item.relPath,
+                originalPath: fsSync.existsSync(origPath) ? origPath : undefined,
+                stagedPath,
+                content: item.content,
+                add: item.add,
+                del: item.del
+            });
+        }
+        // Set on-demand 2-column layout (50% editor, 50% Continuous Multi-Diff)
+        try {
+            await vscode.commands.executeCommand('vscode.setEditorLayout', {
+                orientation: 0,
+                groups: [{ size: 0.5 }, { size: 0.5 }]
+            });
+        }
+        catch { }
+        // Update diff entries in Continuous Multi-Diff Staging
+        const diffEntries = this.stagedFiles.map(f => ({
+            originalUri: f.originalPath,
+            modifiedUri: f.stagedPath,
+            title: f.relPath
+        }));
+        try {
+            await vscode.commands.executeCommand('workbench.action.multiAgent.updateDiffEntries', {
+                entries: diffEntries,
+                label: `Staged Changes (${this.stagedFiles.length} files)`
+            });
+            await vscode.commands.executeCommand('workbench.action.multiAgent.openContinuousDiff');
+        }
+        catch (e) {
+            console.warn('[multi-agent-harness] openContinuousDiff failed:', e);
+        }
+        // Show Staging Action Bar in chat webview
+        const totalAdd = this.stagedFiles.reduce((s, f) => s + f.add, 0);
+        const totalDel = this.stagedFiles.reduce((s, f) => s + f.del, 0);
+        this._view?.webview.postMessage({
+            type: 'showStagingBar',
+            show: true,
+            count: this.stagedFiles.length,
+            add: totalAdd,
+            del: totalDel
+        });
+    }
+    async handleAcceptStaging() {
+        const targetRoot = this.projectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!targetRoot || this.stagedFiles.length === 0)
+            return;
+        try {
+            for (const item of this.stagedFiles) {
+                const destPath = path.join(targetRoot, item.relPath);
+                await fs.mkdir(path.dirname(destPath), { recursive: true });
+                await fs.writeFile(destPath, item.content, 'utf-8');
+            }
+            const count = this.stagedFiles.length;
+            const primaryRelPath = this.stagedFiles.find(f => f.relPath.endsWith('.tsx') || f.relPath.endsWith('.ts') || f.relPath.endsWith('.html'))?.relPath || this.stagedFiles[0].relPath;
+            // Clean up staging dir
+            const stagingDir = StorageLayout_1.StorageLayout.getStagingDir(targetRoot);
+            if (fsSync.existsSync(stagingDir)) {
+                await fs.rm(stagingDir, { recursive: true, force: true });
+            }
+            this.stagedFiles = [];
+            // Clear diff entries
+            try {
+                await vscode.commands.executeCommand('workbench.action.multiAgent.updateDiffEntries', { entries: [], label: 'Continuous Multi-Diff Staging (0 files)' });
+            }
+            catch { }
+            // Collapse back to 1 Column Focus Mode (100% width)
+            await vscode.commands.executeCommand('vscode.setEditorLayout', {
+                orientation: 0,
+                groups: [{ size: 1.0 }]
+            });
+            // Open primary file in column 1
+            const primaryFile = path.join(targetRoot, primaryRelPath);
+            if (fsSync.existsSync(primaryFile)) {
+                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(primaryFile));
+                await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
+            }
+            // Hide staging bar
+            this._view?.webview.postMessage({ type: 'showStagingBar', show: false });
+            // Append success message in chat
+            this.appendChatAndBroadcast('Swarm Hub', 'agent', `✓ Accepted and merged ${count} staged files into workspace.`);
+            vscode.window.showInformationMessage(`Applied ${count} staged files to workspace.`);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Failed to apply staged files: ${msg}`);
+        }
+    }
+    async handleRejectStaging() {
+        const targetRoot = this.projectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!targetRoot)
+            return;
+        try {
+            const stagingDir = StorageLayout_1.StorageLayout.getStagingDir(targetRoot);
+            if (fsSync.existsSync(stagingDir)) {
+                await fs.rm(stagingDir, { recursive: true, force: true });
+            }
+            const count = this.stagedFiles.length;
+            this.stagedFiles = [];
+            // Clear diff entries
+            try {
+                await vscode.commands.executeCommand('workbench.action.multiAgent.updateDiffEntries', { entries: [], label: 'Continuous Multi-Diff Staging (0 files)' });
+            }
+            catch { }
+            // Collapse back to 1 Column Focus Mode (100% width)
+            await vscode.commands.executeCommand('vscode.setEditorLayout', {
+                orientation: 0,
+                groups: [{ size: 1.0 }]
+            });
+            // Hide staging bar
+            this._view?.webview.postMessage({ type: 'showStagingBar', show: false });
+            // Append reject message in chat
+            this.appendChatAndBroadcast('Swarm Hub', 'agent', `✕ Discarded ${count} staged changes without modifying workspace.`);
+            vscode.window.showInformationMessage(`Discarded ${count} staged files.`);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Failed to discard staged changes: ${msg}`);
         }
     }
     async executeDashboardScaffold(targetRoot, prompt, daemonNote) {
@@ -762,20 +902,21 @@ export default function App() {
 }
 `;
         try {
-            await fs.mkdir(path.join(targetRoot, 'src', 'components'), { recursive: true });
-            await fs.writeFile(path.join(targetRoot, 'src', 'components', 'StatsCard.tsx'), statsCardTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'components', 'ChartWidget.tsx'), chartWidgetTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'components', 'Dashboard.tsx'), dashboardTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'App.tsx'), updatedAppTsx, 'utf-8');
-            // Append CSS if not already present
             const currentCssPath = path.join(targetRoot, 'src', 'index.css');
             let currentCss = '';
             if (fsSync.existsSync(currentCssPath)) {
                 currentCss = await fs.readFile(currentCssPath, 'utf-8');
             }
-            if (!currentCss.includes('.dashboard-container')) {
-                await fs.writeFile(currentCssPath, currentCss + '\n' + dashboardCssAppend, 'utf-8');
-            }
+            const newCss = currentCss.includes('.dashboard-container') ? currentCss : (currentCss ? currentCss + '\n' + dashboardCssAppend : dashboardCssAppend);
+            const filesToStage = [
+                { relPath: 'src/components/StatsCard.tsx', content: statsCardTsx, add: 28, del: 0 },
+                { relPath: 'src/components/ChartWidget.tsx', content: chartWidgetTsx, add: 38, del: 0 },
+                { relPath: 'src/components/Dashboard.tsx', content: dashboardTsx, add: 86, del: 0 },
+                { relPath: 'src/App.tsx', content: updatedAppTsx, add: 34, del: 14 },
+                { relPath: 'src/index.css', content: newCss, add: 140, del: 0 }
+            ];
+            // Stage files in ~/.multi-agent-ide/brain/<slug>/staging and open Continuous Multi-Diff
+            await this.stageFilesAndOpenDiff(targetRoot, filesToStage);
             // Update Living PLAN
             const completedPlan = `# Living PLAN.md
 
@@ -922,8 +1063,11 @@ export default function UserProfile() {
 }
 `;
         try {
-            await fs.mkdir(path.join(targetRoot, 'src', 'components'), { recursive: true });
-            await fs.writeFile(path.join(targetRoot, compPath), compContent, 'utf-8');
+            const filesToStage = [
+                { relPath: compPath, content: compContent, add: 50, del: 0 }
+            ];
+            // Stage files in ~/.multi-agent-ide/brain/<slug>/staging and open Continuous Multi-Diff
+            await this.stageFilesAndOpenDiff(targetRoot, filesToStage);
             // Update Living PLAN
             const completedPlan = `# Living PLAN.md
 
@@ -1186,16 +1330,18 @@ button:hover {
 }
 `;
         try {
-            // 1. Write REAL project files directly into user's workspace
-            await fs.mkdir(path.join(targetRoot, 'src', 'components'), { recursive: true });
-            await fs.writeFile(path.join(targetRoot, 'package.json'), packageJson, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'vite.config.ts'), viteConfig, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'tsconfig.json'), tsconfigJson, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'index.html'), indexHtml, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'main.tsx'), mainTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'App.tsx'), appTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'components', 'Header.tsx'), headerTsx, 'utf-8');
-            await fs.writeFile(path.join(targetRoot, 'src', 'index.css'), indexCss, 'utf-8');
+            const filesToStage = [
+                { relPath: 'package.json', content: packageJson, add: 24, del: 0 },
+                { relPath: 'vite.config.ts', content: viteConfig, add: 7, del: 0 },
+                { relPath: 'tsconfig.json', content: tsconfigJson, add: 22, del: 0 },
+                { relPath: 'index.html', content: indexHtml, add: 14, del: 0 },
+                { relPath: 'src/main.tsx', content: mainTsx, add: 12, del: 0 },
+                { relPath: 'src/App.tsx', content: appTsx, add: 22, del: 0 },
+                { relPath: 'src/components/Header.tsx', content: headerTsx, add: 11, del: 0 },
+                { relPath: 'src/index.css', content: indexCss, add: 45, del: 0 }
+            ];
+            // Stage files in ~/.multi-agent-ide/brain/<slug>/staging and open Continuous Multi-Diff
+            await this.stageFilesAndOpenDiff(targetRoot, filesToStage);
             // 2. Write Living PLAN.md in Brain storage (outside workspace)
             const completedPlan = `# Living PLAN.md
 
@@ -1312,13 +1458,19 @@ button:hover {
         else {
             fullPath = path.isAbsolute(targetFile) ? targetFile : path.join(targetRoot, targetFile);
         }
+        // If file doesn't exist in workspace yet, check if it's currently staged!
+        const stagingDir = StorageLayout_1.StorageLayout.getStagingDir(targetRoot);
+        const stagedPath = path.join(stagingDir, targetFile);
+        if (!fsSync.existsSync(fullPath) && fsSync.existsSync(stagedPath)) {
+            fullPath = stagedPath;
+        }
         if (!fsSync.existsSync(fullPath)) {
             vscode.window.showWarningMessage(`File not found: ${targetFile}`);
             return;
         }
         try {
             const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(fullPath));
-            await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Three, preview: false });
+            await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.One, preview: false });
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -1548,7 +1700,7 @@ button:hover {
       padding: 4px 0 2px 0;
     }
 
-    /* Antigravity-style Thinking Dropdown */
+    /* Borderless Thinking Header & Steps */
     .thinking-container {
       position: relative;
       margin: 4px 0 6px 0;
@@ -1564,35 +1716,37 @@ button:hover {
     .thinking-header {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       cursor: pointer;
       user-select: none;
-      color: var(--vscode-descriptionForeground, #9da5b4);
+      color: var(--vscode-descriptionForeground, #8b949e);
       font-weight: 500;
-      padding: 3px 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      font-size: 11px;
+      padding: 0 !important;
+      margin-bottom: 2px;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition: color 0.15s ease;
     }
     .thinking-header:hover {
-      color: var(--vscode-foreground, #fff);
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.25);
+      color: var(--vscode-foreground, #f0f6fc);
+      background: transparent !important;
     }
     .thinking-header .chevron {
       transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       font-size: 10px;
       display: inline-block;
       color: #7d8590;
+      margin-left: 2px;
     }
     .thinking-body {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      margin-top: 6px;
+      margin-top: 4px;
       margin-left: 2px;
-      padding: 4px 0 4px 10px;
+      padding: 2px 0 4px 8px;
       border-left: 1px solid rgba(255, 255, 255, 0.12);
       color: #adbac7;
     }
@@ -1657,6 +1811,75 @@ button:hover {
       font-size: 10.5px;
       margin-top: 4px;
       font-style: normal;
+    }
+
+    /* Staging Review Action Bar */
+    .staging-action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(22, 27, 34, 0.95);
+      border: 1px solid rgba(88, 166, 255, 0.4);
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-bottom: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      flex-shrink: 0;
+    }
+    .staging-summary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+    .staging-pulse {
+      color: #388bfd;
+      font-size: 8px;
+    }
+    .staging-label {
+      background: #1f6feb;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      letter-spacing: 0.4px;
+    }
+    .staging-detail {
+      color: #c9d1d9;
+      font-weight: 500;
+      font-size: 11px;
+    }
+    .staging-buttons {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-staging {
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+    .btn-staging.accept {
+      background: #238636;
+      color: #ffffff;
+    }
+    .btn-staging.accept:hover {
+      background: #2ea043;
+    }
+    .btn-staging.reject {
+      background: rgba(248, 81, 73, 0.15);
+      color: #f85149;
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+    .btn-staging.reject:hover {
+      background: rgba(248, 81, 73, 0.28);
     }
 
     /* Contextual floating action */
@@ -1917,6 +2140,19 @@ button:hover {
     <button id="approveBtn">Approve & Scaffold</button>
   </div>
 
+  <!-- Staging Review Action Bar -->
+  <div id="stagingBar" class="staging-action-bar" style="display: none;">
+    <div class="staging-summary">
+      <span class="staging-pulse">●</span>
+      <span class="staging-label">STAGED</span>
+      <span id="stagingDetail" class="staging-detail">0 files</span>
+    </div>
+    <div class="staging-buttons">
+      <button id="acceptStagingBtn" class="btn-staging accept" title="Apply all changes to workspace">✓ Accept</button>
+      <button id="rejectStagingBtn" class="btn-staging reject" title="Discard staged changes">✕ Reject</button>
+    </div>
+  </div>
+
   <!-- Auto-expanding Input Box -->
   <div class="input-wrapper">
     <textarea id="promptInput" rows="1" placeholder="Ask Swarm or describe what to build (Enter to send)..."></textarea>
@@ -1928,6 +2164,10 @@ button:hover {
     const btn = document.getElementById('dispatchBtn');
     const approveBtn = document.getElementById('approveBtn');
     const approvePill = document.getElementById('approvePill');
+    const stagingBar = document.getElementById('stagingBar');
+    const stagingDetail = document.getElementById('stagingDetail');
+    const acceptStagingBtn = document.getElementById('acceptStagingBtn');
+    const rejectStagingBtn = document.getElementById('rejectStagingBtn');
     const newSessionBtn = document.getElementById('newSessionBtn');
     const cockpitBtn = document.getElementById('cockpitBtn');
     const configBtn = document.getElementById('configBtn');
@@ -2076,6 +2316,18 @@ button:hover {
     approveBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'onApprovePlan' });
     });
+
+    if (acceptStagingBtn) {
+      acceptStagingBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'onAcceptStaging' });
+      });
+    }
+
+    if (rejectStagingBtn) {
+      rejectStagingBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'onRejectStaging' });
+      });
+    }
 
     cockpitBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'onOpenCockpit' });
@@ -2280,6 +2532,17 @@ button:hover {
         }
       } else if (msg.type === 'showApprovePill') {
         approvePill.style.display = msg.show ? 'flex' : 'none';
+      } else if (msg.type === 'showStagingBar') {
+        if (stagingBar) {
+          if (msg.show) {
+            stagingBar.style.display = 'flex';
+            if (stagingDetail) {
+              stagingDetail.textContent = msg.count + (msg.count === 1 ? ' file' : ' files') + ' ready (+' + (msg.add || 0) + ' -' + (msg.del || 0) + ')';
+            }
+          } else {
+            stagingBar.style.display = 'none';
+          }
+        }
       } else if (msg.type === 'updateAgents') {
         // Active agent indicators update safely
       } else if (msg.type === 'daemonUpdate') {

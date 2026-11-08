@@ -18,6 +18,9 @@ class StorageLayout {
     static getArtifactsDir(projectRoot) {
         return path.join(StorageLayout.getBrainDir(projectRoot), 'artifacts');
     }
+    static getStagingDir(projectRoot) {
+        return path.join(StorageLayout.getBrainDir(projectRoot), 'staging');
+    }
     static getWorktreesDir(projectRoot) {
         return path.join(StorageLayout.globalRoot, 'worktrees', StorageLayout.getProjectSlug(projectRoot));
     }

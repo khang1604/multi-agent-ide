@@ -55,28 +55,13 @@ export class MultiAgentCockpit {
 	 * when a new workspace is launched or when no previous editors exist.
 	 */
 	public static getInitialEditorsState(
-		configurationService: IConfigurationService,
-		contextService: IWorkspaceContextService,
-		storageService: IStorageService,
-		editorGroupService: IEditorGroupsService
+		_configurationService: IConfigurationService,
+		_contextService: IWorkspaceContextService,
+		_storageService: IStorageService,
+		_editorGroupService: IEditorGroupsService
 	): ICockpitEditorsState | undefined {
-		if (!this.isEnabled(configurationService)) {
-			return undefined;
-		}
-
-		// Only activate Cockpit layout when opening a new workspace or when there is no restorable editor state
-		const isNewWorkspace = storageService.isNew(StorageScope.WORKSPACE);
-		const hasRestorableState = editorGroupService.hasRestorableState;
-		if (!isNewWorkspace && hasRestorableState) {
-			return undefined;
-		}
-
-		// Return the 3-column cockpit layout without hardcoding workspace files.
-		// Centralized brain files (~/.multi-agent-ide/brain/<slug>/) are populated
-		// by the multi-agent-harness extension once initialized.
-		return {
-			layout: this.getCockpitLayout()
-		};
+		// Clean focus mode on launch: Keep clean single-column workspace
+		return undefined;
 	}
 }
 
