@@ -101,6 +101,15 @@
     - Detects and filters off-topic chatter, social pleasantries, and unauthorized prompt injections.
     - Automatically re-aligns agents towards the active tasks in living `PLAN.md` upon violation.
 
+17. **Dynamic On-Demand Staging Layout & Interactive Accept/Reject Workflow:**
+    - Single-Column Focus Mode on Startup: Removed forced 3-column split (`PLAN.md`, `Continuous Multi-Diff Staging`, `SWARM_ACTIVITY.md`) on IDE launch. The workspace now opens full-width (100%) in standard single-column focus mode.
+    - On-Demand Multi-Diff Column: When an agent generates code changes requiring review, the IDE dynamically splits to 2 columns (50% active editor, 50% Continuous Multi-Diff) and populates staged files into the native Multi-Diff editor.
+    - Interactive Staging Action Bar: Placed above chat input with `[● STAGED] X files ready (+A -B lines)`, `[✓ Accept]` and `[✕ Reject]` buttons.
+    - On Accept: Applies all staged files from `~/.multi-agent-ide/brain/<slug>/staging/` to workspace, clears staging cache, collapses the diff column back to single-column focus mode, and opens the primary file.
+    - On Reject: Discards staged changes from staging cache, collapses back to single-column focus mode without modifying the workspace.
+    - Borderless Thinking Header: Removed rounded border frame and background pill from `Thinking (Xs) >` for clean, minimalist Antigravity typography.
+    - Clickable Staged Files: In thinking steps, clicking file names inspects both workspace and staging paths, opening the file immediately in Column 1.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
 - **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
