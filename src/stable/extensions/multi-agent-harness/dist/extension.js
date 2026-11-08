@@ -213,7 +213,7 @@ function activate(context) {
         await config.update(`roleMapping.${rolePick.role}`, chosen.id, vscode.ConfigurationTarget.Global);
         await config.update('roleMapping', currentRoleMapping, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(`Successfully assigned "${chosen.id.toUpperCase()}" as ${rolePick.label}.`);
-    }), vscode.commands.registerCommand('multiAgent.loginCliAccount', async () => {
+    }), vscode.commands.registerCommand('multiAgent.loginCliAccount', async (targetProvider) => {
         let doctor;
         try {
             doctor = await daemonBridge.getDoctor();
@@ -221,49 +221,53 @@ function activate(context) {
         catch (e) {
             console.warn('Doctor probe error:', e);
         }
-        const pick = await vscode.window.showQuickPick([
-            {
-                label: '$(account) Google Antigravity',
-                id: 'antigravity',
-                description: 'Google Account (agy CLI)',
-                detail: 'Launch interactive terminal session for Google Antigravity'
-            },
-            {
-                label: '$(account) OpenAI Codex',
-                id: 'codex',
-                description: 'ChatGPT Account (codex login)',
-                detail: 'Launch browser OAuth login for ChatGPT Plus / Team / Enterprise'
-            },
-            {
-                label: '$(account) Anthropic Claude Code',
-                id: 'claude',
-                description: 'Anthropic Account (claude login)',
-                detail: 'Launch browser login for Anthropic Claude Code CLI'
-            },
-            {
-                label: '$(account) GitHub Copilot',
-                id: 'copilot',
-                description: 'GitHub Account (gh auth login)',
-                detail: 'Authorize GitHub CLI and Copilot subscription'
-            }
-        ], { placeHolder: 'Select an Agent CLI to sign in with your account' });
-        if (!pick)
-            return;
-        if (pick.id === 'antigravity') {
+        let selectedId = targetProvider;
+        if (!selectedId) {
+            const pick = await vscode.window.showQuickPick([
+                {
+                    label: '$(account) Google Antigravity',
+                    id: 'antigravity',
+                    description: 'Google Account (agy CLI)',
+                    detail: 'Launch interactive terminal session for Google Antigravity'
+                },
+                {
+                    label: '$(account) OpenAI Codex',
+                    id: 'codex',
+                    description: 'ChatGPT Account (codex login)',
+                    detail: 'Launch browser OAuth login for ChatGPT Plus / Team / Enterprise'
+                },
+                {
+                    label: '$(account) Anthropic Claude Code',
+                    id: 'claude',
+                    description: 'Anthropic Account (claude login)',
+                    detail: 'Launch browser login for Anthropic Claude Code CLI'
+                },
+                {
+                    label: '$(account) GitHub Copilot',
+                    id: 'copilot',
+                    description: 'GitHub Account (gh auth login)',
+                    detail: 'Authorize GitHub CLI and Copilot subscription'
+                }
+            ], { placeHolder: 'Select an Agent CLI to sign in with your account' });
+            if (!pick)
+                return;
+            selectedId = pick.id;
+        }
+        if (selectedId === 'antigravity') {
             const bin = findCliBinary('antigravity', doctor) || 'agy';
             const term = vscode.window.createTerminal({ name: 'Agent CLI: Google Antigravity' });
             term.show();
             term.sendText(`"${bin}"`);
             vscode.window.showInformationMessage('Opened Google Antigravity terminal session.');
         }
-        else if (pick.id === 'codex') {
+        else if (selectedId === 'codex') {
             const bin = findCliBinary('codex', doctor) || 'codex';
             const term = vscode.window.createTerminal({ name: 'Agent CLI: Codex Login' });
             term.show();
             term.sendText(`"${bin}" login`);
             vscode.window.showInformationMessage('Opening browser authentication for ChatGPT/Codex account. Please complete login in the opened window.');
         }
-        else if (pick.id === 'claude') {
+        else if (selectedId === 'claude') {
             const isInstalled = doctor?.providers?.claude?.available === true;
             if (!isInstalled) {
                 const action = await vscode.window.showWarningMessage('Claude Code CLI is not installed. Please install it using npm first: npm install -g @anthropic-ai/claude-code', 'Copy Install Command');
@@ -278,7 +282,7 @@ function activate(context) {
             term.sendText('claude login');
             vscode.window.showInformationMessage('Opened Claude Code login in terminal.');
         }
-        else if (pick.id === 'copilot') {
+        else if (selectedId === 'copilot') {
             const isInstalled = doctor?.providers?.copilot?.available === true;
             if (!isInstalled) {
                 const action = await vscode.window.showWarningMessage('GitHub CLI (gh) is not installed. Please install it with: sudo apt install gh, then run gh auth login.', 'Copy Install Command');

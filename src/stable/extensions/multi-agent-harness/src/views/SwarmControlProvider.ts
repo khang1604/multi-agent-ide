@@ -168,6 +168,9 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
         case 'onOpenSettingsPanel':
           await vscode.commands.executeCommand('multiAgent.configureProviders');
           break;
+        case 'onLoginCliAccount':
+          await vscode.commands.executeCommand('multiAgent.loginCliAccount');
+          break;
         case 'onGetDoctor':
           await this.sendProvidersState();
           break;
@@ -1756,7 +1759,7 @@ button:hover {
     body {
       font-family: var(--vscode-font-family);
       color: var(--vscode-foreground);
-      padding: 6px;
+      padding: 8px 12px 10px 12px;
       margin: 0;
       background: transparent;
       font-size: 12px;
@@ -1770,29 +1773,29 @@ button:hover {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      margin-bottom: 6px;
-      padding-bottom: 4px;
+      margin-bottom: 8px;
+      padding: 2px 2px 6px 2px;
       border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
       flex-shrink: 0;
-      height: 26px;
+      height: 28px;
     }
 
     /* Swarm Agent Swimlanes */
     .swarm-swimlanes {
       display: flex;
-      gap: 5px;
-      margin-bottom: 8px;
+      gap: 6px;
+      margin-bottom: 10px;
       flex-shrink: 0;
     }
     .agent-pill-card {
       flex: 1;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 6px;
-      padding: 4px 6px;
+      padding: 5px 8px;
       cursor: default;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       min-width: 0;
@@ -1973,67 +1976,70 @@ button:hover {
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      padding-right: 2px;
-      margin-bottom: 6px;
+      gap: 12px;
+      padding: 4px 4px 8px 2px;
+      margin-bottom: 8px;
     }
     .chat-bubble {
-      padding: 6px 8px;
-      border-radius: 6px;
+      padding: 8px 12px;
+      border-radius: 8px;
       font-size: 12px;
-      line-height: 1.35;
+      line-height: 1.45;
       word-break: break-word;
     }
     .chat-bubble.user {
-      background: #1f4068;
+      background: #194a7a;
       align-self: flex-end;
-      max-width: 90%;
+      max-width: 85%;
       color: #ffffff;
-      padding: 6px 10px;
-      border-radius: 8px;
-      margin-bottom: 4px;
+      padding: 8px 14px;
+      border-radius: 12px 12px 2px 12px;
+      margin: 2px 0 4px 0;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
     }
     .chat-bubble.user .bubble-meta {
-      font-size: 9px;
+      font-size: 9.5px;
       font-weight: 600;
-      opacity: 0.8;
-      margin-bottom: 2px;
+      opacity: 0.85;
+      margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
-      gap: 8px;
+      gap: 10px;
     }
     .chat-bubble.agent,
     .chat-bubble.worker,
     .chat-bubble.auditor {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
       align-self: flex-start;
-      max-width: 100% !important;
-      width: 100% !important;
-      padding: 2px 0 10px 0 !important;
-      margin: 0 !important;
+      max-width: 100%;
+      width: 100%;
+      padding: 8px 12px 10px 12px;
+      margin: 2px 0 6px 0;
+      box-sizing: border-box;
     }
     .chat-bubble.agent .bubble-meta,
     .chat-bubble.worker .bubble-meta,
     .chat-bubble.auditor .bubble-meta {
-      display: none !important;
+      display: none;
     }
     .chat-chip.system {
       display: none; /* Suppress system chips in main chat; all telemetry routes to Thinking */
     }
     .bubble-text {
       white-space: pre-wrap;
-      font-size: 12px;
-      line-height: 1.5;
+      font-size: 12.5px;
+      line-height: 1.55;
       color: var(--vscode-foreground, #e6edf3);
-      padding: 4px 0 2px 0;
+      padding: 2px 0;
     }
 
-    /* Borderless Thinking Header & Steps */
+    /* Thinking Header & Steps */
     .thinking-container {
       position: relative;
-      margin: 4px 0 6px 0;
+      margin: 4px 0 8px 0;
       font-size: 11px;
       font-family: var(--vscode-font-family);
     }
@@ -2046,22 +2052,23 @@ button:hover {
     .thinking-header {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       cursor: pointer;
       user-select: none;
       color: var(--vscode-descriptionForeground, #8b949e);
       font-weight: 500;
       font-size: 11px;
-      padding: 0 !important;
-      margin-bottom: 2px;
-      border: none !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      transition: color 0.15s ease;
+      padding: 3px 8px;
+      margin-bottom: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.035);
+      border-radius: 5px;
+      transition: all 0.15s ease;
     }
     .thinking-header:hover {
       color: var(--vscode-foreground, #f0f6fc);
-      background: transparent !important;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
     }
     .thinking-header .chevron {
       transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2073,11 +2080,13 @@ button:hover {
     .thinking-body {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 5px;
       margin-top: 4px;
       margin-left: 2px;
-      padding: 2px 0 4px 8px;
-      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 6px 8px 6px 10px;
+      border-left: 2px solid rgba(88, 166, 255, 0.35);
+      background: rgba(0, 0, 0, 0.12);
+      border-radius: 0 6px 6px 0;
       color: #adbac7;
     }
     .thinking-step {
@@ -2242,15 +2251,21 @@ button:hover {
       display: flex;
       align-items: flex-end;
       width: 100%;
-      border: 1px solid var(--vscode-input-border, #444);
-      border-radius: 6px;
-      background: var(--vscode-input-background);
-      padding: 4px;
+      border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.15));
+      border-radius: 8px;
+      background: var(--vscode-input-background, rgba(0, 0, 0, 0.2));
+      padding: 6px 8px;
       box-sizing: border-box;
       flex-shrink: 0;
+      margin-top: 4px;
+      margin-bottom: 2px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .input-wrapper:focus-within {
-      outline: 1px solid var(--vscode-focusBorder, #007acc);
+      border-color: var(--vscode-focusBorder, #007acc);
+      box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+      outline: none;
     }
     textarea {
       flex: 1;
@@ -2259,31 +2274,32 @@ button:hover {
       background: transparent;
       color: var(--vscode-input-foreground);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 12.5px;
       resize: none;
-      min-height: 24px;
-      max-height: 100px;
-      line-height: 1.35;
-      padding: 2px 4px;
+      min-height: 28px;
+      max-height: 120px;
+      line-height: 1.45;
+      padding: 4px 6px;
       box-sizing: border-box;
     }
     .send-icon-btn {
-      background: #007acc;
-      color: #fff;
+      background: var(--vscode-button-background, #007acc);
+      color: var(--vscode-button-foreground, #fff);
       border: none;
-      border-radius: 4px;
-      width: 26px;
-      height: 24px;
+      border-radius: 6px;
+      width: 28px;
+      height: 28px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 12px;
-      margin-left: 4px;
+      margin-left: 6px;
       flex-shrink: 0;
+      transition: background 0.15s ease, opacity 0.15s ease;
     }
     .send-icon-btn:hover {
-      background: #005999;
+      background: var(--vscode-button-hoverBackground, #005999);
     }
   </style>
 </head>
@@ -2296,7 +2312,10 @@ button:hover {
       <button id="cockpitBtn" class="icon-btn" title="Cockpit 3-Column Layout">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 2H2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM2 3h3v10H2V3zm4 10V3h4v10H6zm8 0h-3V3h3v10z"/></svg>
       </button>
-      <button id="configBtn" class="icon-btn" title="Agent Providers & Settings">
+      <button id="loginBtn" class="icon-btn" title="Sign in with CLI Account">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+      </button>
+      <button id="configBtn" class="icon-btn" title="Agent Settings & Preferences">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.5.5v1.2l2.5.5.3.8-1.4 1.9.8.8 2-1.3.8.3.4 2.5h1.2l.5-2.5.7-.3 2 1.3.8-.8-1.3-2 .3-.7 2.4-.5V7.6l-2.4-.5-.3-.7 1.3-2-.8-.8-2 1.3-.7-.3zM8 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
       </button>
       <button id="daemonBtn" class="icon-btn daemon-indicator running" title="Hub Daemon: Running (Click to toggle)">
@@ -2525,6 +2544,13 @@ button:hover {
     configBtn.addEventListener('click', () => {
       vscode.postMessage({ type: 'onOpenSettingsPanel' });
     });
+
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'onLoginCliAccount' });
+      });
+    }
 
     daemonBtn.addEventListener('click', () => {
       const nextAction = currentDaemonState === 'running' ? 'stop' : 'start';

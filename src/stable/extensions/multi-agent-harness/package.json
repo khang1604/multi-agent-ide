@@ -109,6 +109,18 @@
           "default": true,
           "description": "Enable native 3-column Agent Cockpit layout on launch (PLAN.md, Multi-Diff Staging, Swarm Activity)."
         },
+        "multiAgent.auth.cliAccount": {
+          "type": "string",
+          "enum": ["antigravity", "codex", "claude", "copilot"],
+          "enumItemLabels": [
+            "Google Antigravity (agy CLI)",
+            "OpenAI Codex (ChatGPT Account)",
+            "Anthropic Claude Code (Claude Account)",
+            "GitHub Copilot (GitHub Account)"
+          ],
+          "default": "antigravity",
+          "markdownDescription": "Sign in to an Agent CLI with your subscription/cloud account. Click below to launch authentication in terminal:\n\n- 🔑 [Sign in to Google Antigravity (Google Account)](command:multiAgent.loginCliAccount?%22antigravity%22)\n- 🔑 [Sign in to OpenAI Codex ('codex login')](command:multiAgent.loginCliAccount?%22codex%22)\n- 🔑 [Sign in to Anthropic Claude Code ('claude login')](command:multiAgent.loginCliAccount?%22claude%22)\n- 🔑 [Sign in to GitHub Copilot ('gh auth login')](command:multiAgent.loginCliAccount?%22copilot%22)\n- 📋 [Open Interactive Login Menu](command:multiAgent.loginCliAccount)"
+        },
         "multiAgent.roleMapping.architect": {
           "type": "string",
           "enum": ["antigravity", "codex", "claude", "copilot"],
@@ -119,7 +131,7 @@
             "GitHub Copilot"
           ],
           "default": "antigravity",
-          "description": "Lead Architect agent: decomposes engineering goals into living PLAN.md."
+          "markdownDescription": "Lead Architect agent: decomposes engineering goals into living PLAN.md. Need to authenticate or switch accounts? [Sign in with CLI Account](command:multiAgent.loginCliAccount)."
         },
         "multiAgent.roleMapping.worker": {
           "type": "string",
@@ -131,7 +143,7 @@
             "GitHub Copilot"
           ],
           "default": "antigravity",
-          "description": "Algorithm Worker agent: implements source files and creates multi-diff staging."
+          "markdownDescription": "Algorithm Worker agent: implements source files and creates multi-diff staging. Need to authenticate or switch accounts? [Sign in with CLI Account](command:multiAgent.loginCliAccount)."
         },
         "multiAgent.roleMapping.auditor": {
           "type": "string",
@@ -143,22 +155,22 @@
             "GitHub Copilot"
           ],
           "default": "antigravity",
-          "description": "Security & QA Auditor agent: runs AST checks, security invariants, and unit verification."
+          "markdownDescription": "Security & QA Auditor agent: runs AST checks, security invariants, and unit verification. Need to authenticate or switch accounts? [Sign in with CLI Account](command:multiAgent.loginCliAccount)."
         },
         "multiAgent.apiKey.gemini": {
           "type": "string",
           "default": "",
-          "description": "Fallback Gemini API Key. Used ONLY if CLI account login is unavailable."
+          "markdownDescription": "Fallback Gemini API Key. Used ONLY if CLI account login is unavailable. Prefer signing in with your Google Account? [Open Antigravity Session](command:multiAgent.loginCliAccount?%22antigravity%22)."
         },
         "multiAgent.apiKey.openai": {
           "type": "string",
           "default": "",
-          "description": "Fallback OpenAI API Key. Used ONLY if Codex CLI account login or subscription is unavailable."
+          "markdownDescription": "Fallback OpenAI API Key. Used ONLY if Codex CLI account login or subscription is unavailable. Prefer signing in with your ChatGPT account? [Run 'codex login'](command:multiAgent.loginCliAccount?%22codex%22)."
         },
         "multiAgent.apiKey.anthropic": {
           "type": "string",
           "default": "",
-          "description": "Fallback Anthropic API Key. Used ONLY if Claude CLI account login is unavailable."
+          "markdownDescription": "Fallback Anthropic API Key. Used ONLY if Claude CLI account login is unavailable. Prefer signing in with your Claude account? [Run 'claude login'](command:multiAgent.loginCliAccount?%22claude%22)."
         },
         "multiAgent.customProviders": {
           "type": "array",
