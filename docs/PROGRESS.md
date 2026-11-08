@@ -110,6 +110,23 @@
     - Borderless Thinking Header: Removed rounded border frame and background pill from `Thinking (Xs) >` for clean, minimalist Antigravity typography.
     - Clickable Staged Files: In thinking steps, clicking file names inspects both workspace and staging paths, opening the file immediately in Column 1.
 
+18. **Unified Native Settings Integration & CLI Account Authentication:**
+    - Standard VS Code Settings: Consolidated all agent configuration, role mappings, and authentication directly into the native VS Code Settings editor under `Multi-Agent`.
+    - CLI Account First Priority: Deprecated standalone external API key entry in favor of native CLI subscription accounts (`agy`, `codex login`, `claude login`, `gh auth login`).
+    - Clickable Setting Markdown Links: Integrated `command:multiAgent.loginCliAccount?%22<provider>%22` links inside `package.json` configuration descriptions, allowing users to launch interactive CLI terminal logins directly from Settings.
+    - Added dedicated top-bar login action button in Swarm Chat for instantaneous account access.
+    - Default English UI and strict role mapping constraints preventing uninstalled or out-of-quota providers from being selected.
+
+19. **Chat UI Aesthetics, Spacing & Layout Polish:**
+    - Optimized sidebar padding and margins (`body: 8px 12px 10px 12px`, `.chat-container: gap: 12px; padding: 4px 4px 8px 2px`).
+    - User Chat Bubbles: Upgraded with modern asymmetric rounded corners (`12px 12px 2px 12px`), elevated deep-blue styling, and comfortable text padding.
+    - Agent Chat Cards: Encapsulated responses in clean, translucent cards (`rgba(255, 255, 255, 0.025)`) with subtle borders and 8px 12px padding.
+    - Interactive Thinking Header: Refined with pill badge styling (`padding: 3px 8px; border-radius: 5px; background: rgba(255, 255, 255, 0.035)`), smooth chevron transition, and indented timeline border.
+    - Auto-Expanding Input Box: Enhanced with 8px radius, 6px 8px padding, focus glow ring, and a 28x28px send button.
+
+20. **Release v0.1.0-beta Published:**
+    - Git tag `v0.1-beta` and GitHub Release `v0.1.0-beta` published at `https://github.com/khang1604/multi-agent-ide/releases/tag/v0.1.0-beta`.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
 - **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
