@@ -59,6 +59,16 @@
         "command": "multiAgent.refreshWorktrees",
         "title": "Multi Agent: Refresh Worktrees",
         "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.openArchitectureMap",
+        "title": "Multi Agent: Open Visual Architecture Map",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.setupCockpitLayout",
+        "title": "Multi Agent: Reset Cockpit 3-Column Layout",
+        "category": "Multi Agent"
       }
     ]
   },

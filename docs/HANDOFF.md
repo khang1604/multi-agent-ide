@@ -111,7 +111,7 @@ Bạn là Agentic AI Software Engineer tiếp quản phát triển dự án "Mul
 Dự án này là một Agent-First IDE được fork và cắt gọt từ VS Code (Code-OSS 1.143.1 / VSCodium), loại bỏ hoàn toàn Microsoft Telemetry, tích hợp sâu kiến trúc đa tác tử (Claude Architect, o3-mini Worker, Gemini Auditor).
 
 Vui lòng đọc kỹ:
-1. HANDOFF.md (Tổng quan tiến độ & vị trí mã nguồn)
+1. docs/HANDOFF.md (Tổng quan tiến độ & vị trí mã nguồn)
 2. docs/PROGRESS.md (Nhật ký phát triển gần nhất)
 3. docs/architecture/ (15 tài liệu thiết kế kiến trúc đa tác tử)
 4. ai/GLOBAL_RULES.md và ai/SECURITY.md (Quy tắc bảo mật & phân vùng làm việc)
@@ -137,7 +137,7 @@ You are an expert systems engineer taking over development of "Multi Agent IDE" 
 This project is an Agent-First IDE forked and pruned from VS Code (Code-OSS 1.143.1 / VSCodium). All telemetry is removed, and a multi-agent orchestration harness (Claude Architect, o3-mini Worker, Gemini Auditor) is being natively integrated into the workbench core.
 
 Key files to review:
-1. HANDOFF.md (Project orientation and structure)
+1. docs/HANDOFF.md (Project orientation and structure)
 2. docs/PROGRESS.md (Current status and lessons learned)
 3. docs/architecture/ (15 detailed multi-agent specifications)
 4. ai/GLOBAL_RULES.md & ai/SECURITY.md (Security constraints and coding guidelines)
@@ -152,3 +152,4 @@ Next Immediate Task:
 Implement Tier 1 Native Workbench Cockpit: Modify VS Code layout (vscode/src/vs/workbench/browser/layout.ts) to establish a 3-column Agent Cockpit: Column 1 = Living PLAN.md viewer, Column 2 = Continuous Multi-Diff staging, Column 3 = Swarm Control stream.
 Begin by analyzing the layout engine and proposing surgical changes.
 ```
+

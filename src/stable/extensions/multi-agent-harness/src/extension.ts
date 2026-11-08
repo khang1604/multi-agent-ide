@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import { WorktreeManager } from './worktree/WorktreeManager';
 import { ArtifactManager } from './artifacts/ArtifactManager';
 import { AgentDiffProvider } from './diff/DiffProvider';
@@ -53,6 +55,59 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('multiAgent.refreshWorktrees', async () => {
       const list = await worktreeMgr.listWorktrees();
       vscode.window.showInformationMessage(`Active Worktrees: ${list.length}`);
+    })
+  );
+
+  // 4. Architecture Map & Cockpit Navigation
+  context.subscriptions.push(
+    vscode.commands.registerCommand('multiAgent.openArchitectureMap', async () => {
+      const mapUri = vscode.Uri.file(path.join(rootPath, 'docs', 'architecture', 'VISUAL_FLOW_MAP.md'));
+      try {
+        await vscode.commands.executeCommand('markdown.showPreview', mapUri);
+      } catch {
+        const doc = await vscode.workspace.openTextDocument(mapUri);
+        await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Three, preview: true });
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('multiAgent.setupCockpitLayout', async () => {
+      await vscode.commands.executeCommand('vscode.setEditorLayout', {
+        orientation: 0,
+        groups: [{ size: 0.28 }, { size: 0.44 }, { size: 0.28 }],
+      });
+
+      const planPath = path.join(rootPath, 'PLAN.md');
+      const diffPath = path.join(rootPath, '.local', 'DIFF_STAGING.diff');
+      const activityPath = path.join(rootPath, '.local', 'SWARM_ACTIVITY.md');
+
+      try {
+        await fs.mkdir(path.join(rootPath, '.local'), { recursive: true });
+        try { await fs.access(planPath); } catch {
+          await fs.writeFile(planPath, '# Living PLAN.md\n\n> Multi-Agent Execution Plan\n\n## 1. Objectives\n- [ ] Task 1: Inception\n', 'utf-8');
+        }
+        try { await fs.access(diffPath); } catch {
+          await fs.writeFile(diffPath, '# Continuous Multi-Diff Staging\n# Waiting for Swarm dispatches...\n', 'utf-8');
+        }
+        try { await fs.access(activityPath); } catch {
+          await fs.writeFile(activityPath, '# Swarm Activity Stream\n\n- [Architect] Initialized\n- [Worker] Standby\n- [Auditor] Standby\n', 'utf-8');
+        }
+
+        const planDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
+        await vscode.window.showTextDocument(planDoc, { viewColumn: vscode.ViewColumn.One, preview: false });
+
+        const diffDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(diffPath));
+        await vscode.window.showTextDocument(diffDoc, { viewColumn: vscode.ViewColumn.Two, preview: false });
+
+        const actDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(activityPath));
+        await vscode.window.showTextDocument(actDoc, { viewColumn: vscode.ViewColumn.Three, preview: false });
+
+        vscode.window.showInformationMessage('Swarm Cockpit 3-Column Layout active.');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Cockpit setup error: ${msg}`);
+      }
     })
   );
 
