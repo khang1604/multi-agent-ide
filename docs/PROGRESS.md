@@ -59,11 +59,20 @@
    - Updated `run.sh` to default to workspace directory (`${1:-$DIR}`).
    - Deployed Linux desktop launcher entry at `~/.local/share/applications/multi-agent-ide.desktop` and verified with `desktop-file-validate`.
 
+10. **Tier 5 Implemented: Agent Configuration Drawer & Custom CLI Registration:**
+    - Added configuration schemas to `package.json`: `multiAgent.roleMapping` and `multiAgent.customProviders`.
+    - Enhanced `SwarmControlProvider.ts` with an in-view `⚙️ Agents` config drawer accessible from the top-bar header.
+    - Role Assignment Grid: Select CLI engines for Architect, Worker, and Auditor roles.
+    - Live CLI Probe: Integrated `DaemonBridge.getDoctor()` to show real-time installation status (`READY` vs `NOT FOUND`) and versions of `agy`, `codex`, `claude`, and `copilot`.
+    - Custom Agent Registration: Direct UI form to register arbitrary external agent CLIs (e.g. `aider`, `gemini-cli`) with execution path and supported workflow stages (`Plan`, `Code`, `Review`).
+    - Two-way synchronization with VS Code user `settings.json` and added command `multiAgent.configureProviders`.
+    - Seeded default living `PLAN.md` template in the project root for automatic Cockpit Column 1 hydration.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
 - **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
 - **Python Hub Daemon & CLI:** Verified via `harness/cli/hub.py` (doctor, status, start/stop).
 - **Desktop Launcher:** Verified valid XDG desktop specification.
-- **Runtime Testing:** Successfully spawned standalone Electron instance with all 4 tiers active.
+- **Runtime Testing:** Standalone Electron instance running with full Cockpit, Activity Bar Chat HUD, and Agent Settings Drawer.
 
 
