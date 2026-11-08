@@ -10,7 +10,6 @@ const WorktreeManager_1 = require("./worktree/WorktreeManager");
 const ArtifactManager_1 = require("./artifacts/ArtifactManager");
 const DiffProvider_1 = require("./diff/DiffProvider");
 const SwarmControlProvider_1 = require("./views/SwarmControlProvider");
-const AgentSettingsPanel_1 = require("./views/AgentSettingsPanel");
 const DaemonBridge_1 = require("./daemon/DaemonBridge");
 const AuditorDiagnostics_1 = require("./auditor/AuditorDiagnostics");
 const StorageLayout_1 = require("./storage/StorageLayout");
@@ -30,11 +29,27 @@ function activate(context) {
     });
     context.subscriptions.push({ dispose: () => mcpServer.stop() });
     // Initialize Daemon Bridge & start background status sync
-    daemonBridge.init().then(() => {
+    daemonBridge.init().then(async () => {
         daemonBridge.startSync(3000);
+        await validateAndEnforceRoles(daemonBridge);
     }).catch((err) => {
         console.warn('[multi-agent-harness] DaemonBridge init error:', err);
     });
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (e) => {
+        if (e.affectsConfiguration('multiAgent.roleMapping') || e.affectsConfiguration('multiAgent.apiKey')) {
+            const config = vscode.workspace.getConfiguration('multiAgent');
+            const openaiKey = config.get('apiKey.openai');
+            if (openaiKey)
+                process.env.OPENAI_API_KEY = openaiKey;
+            const anthropicKey = config.get('apiKey.anthropic');
+            if (anthropicKey)
+                process.env.ANTHROPIC_API_KEY = anthropicKey;
+            const geminiKey = config.get('apiKey.gemini');
+            if (geminiKey)
+                process.env.GEMINI_API_KEY = geminiKey;
+            await validateAndEnforceRoles(daemonBridge);
+        }
+    }));
     // 1. Register diff content provider
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DiffProvider_1.AgentDiffProvider.scheme, diffProvider));
     // 2. Register Webview Views with Daemon Bridge
@@ -111,8 +126,95 @@ function activate(context) {
         ]);
         vscode.window.showInformationMessage('Auditor report simulated: diagnostics updated.');
     }));
-    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
-        await AgentSettingsPanel_1.AgentSettingsPanel.createOrShow(context.extensionUri, daemonBridge);
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.assignRoles', async () => {
+        let doctor;
+        try {
+            doctor = await daemonBridge.getDoctor();
+        }
+        catch (e) {
+            vscode.window.showErrorMessage('Unable to query Agent status from Hub.');
+            return;
+        }
+        if (!doctor || !doctor.providers) {
+            vscode.window.showErrorMessage('No Agent providers detected.');
+            return;
+        }
+        const healthMap = {};
+        if (doctor.health && Array.isArray(doctor.health)) {
+            for (const h of doctor.health) {
+                if (h.reason && h.reason.trim())
+                    healthMap[h.provider] = h.reason;
+            }
+        }
+        const isUsable = (name) => {
+            const p = doctor.providers[name];
+            if (!p)
+                return { usable: false, reason: 'Not installed' };
+            if (p.available !== true)
+                return { usable: false, reason: p.reason || 'CLI not installed' };
+            if (healthMap[name])
+                return { usable: false, reason: healthMap[name] };
+            return { usable: true };
+        };
+        const rolePick = await vscode.window.showQuickPick([
+            { label: '🏛️ Lead Architect', role: 'architect', description: 'Decompose requirements into living PLAN.md' },
+            { label: '⚡ Algorithm Worker', role: 'worker', description: 'Source code implementation and diff staging' },
+            { label: '🛡️ Security Auditor', role: 'auditor', description: 'AST validation and security verification' }
+        ], { placeHolder: 'Select Swarm role to configure' });
+        if (!rolePick)
+            return;
+        const config = vscode.workspace.getConfiguration('multiAgent');
+        const currentRoleMapping = config.get('roleMapping') || {};
+        const currentAssigned = config.get(`roleMapping.${rolePick.role}`) || currentRoleMapping[rolePick.role] || 'antigravity';
+        const providerOptions = Object.keys(doctor.providers).map(provName => {
+            const check = isUsable(provName);
+            let label = provName.toUpperCase();
+            if (provName === 'antigravity')
+                label = 'Google Antigravity (Gemini)';
+            else if (provName === 'codex')
+                label = 'OpenAI Codex';
+            else if (provName === 'claude')
+                label = 'Anthropic Claude Code';
+            else if (provName === 'copilot')
+                label = 'GitHub Copilot';
+            const isCurrent = currentAssigned === provName;
+            if (check.usable) {
+                return {
+                    label: `$(check) ${label}${isCurrent ? ' (Current)' : ''}`,
+                    id: provName,
+                    usable: true,
+                    description: 'Ready'
+                };
+            }
+            else {
+                let cleanReason = check.reason || 'Unavailable';
+                if (cleanReason.includes('quota') || cleanReason.includes('limit'))
+                    cleanReason = 'Quota limit reached';
+                else if (cleanReason.includes('not installed'))
+                    cleanReason = 'CLI not installed';
+                return {
+                    label: `$(circle-slash) ${label}`,
+                    id: provName,
+                    usable: false,
+                    description: `Cannot select: ${cleanReason}`
+                };
+            }
+        });
+        const chosen = await vscode.window.showQuickPick(providerOptions, {
+            placeHolder: `Choose an agent for ${rolePick.label}`
+        });
+        if (!chosen)
+            return;
+        if (!chosen.usable) {
+            vscode.window.showErrorMessage(`"${chosen.id.toUpperCase()}" cannot be selected: ${chosen.description}. Please choose an agent with "Ready" status.`);
+            return;
+        }
+        currentRoleMapping[rolePick.role] = chosen.id;
+        await config.update(`roleMapping.${rolePick.role}`, chosen.id, vscode.ConfigurationTarget.Global);
+        await config.update('roleMapping', currentRoleMapping, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Successfully assigned "${chosen.id.toUpperCase()}" as ${rolePick.label}.`);
+    }), vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
+        await vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgent');
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.newSession', async () => {
         const input = await vscode.window.showInputBox({
@@ -251,5 +353,62 @@ function deactivate() {
     daemonBridge.stopSync();
     const mcpServer = IdeMcpServer_1.IdeMcpServer.getInstance();
     mcpServer.stop();
+}
+async function validateAndEnforceRoles(daemonBridge) {
+    const config = vscode.workspace.getConfiguration('multiAgent');
+    let doctor;
+    try {
+        doctor = await daemonBridge.getDoctor();
+    }
+    catch (e) {
+        console.warn('[multi-agent-harness] Doctor probe failed:', e);
+        return;
+    }
+    if (!doctor || !doctor.providers)
+        return;
+    const healthMap = {};
+    if (doctor.health && Array.isArray(doctor.health)) {
+        for (const h of doctor.health) {
+            if (h.reason && h.reason.trim()) {
+                healthMap[h.provider] = h.reason;
+            }
+        }
+    }
+    const isUsable = (provName) => {
+        const p = doctor.providers[provName];
+        if (!p)
+            return { usable: false, reason: 'CLI engine not configured' };
+        if (p.available !== true)
+            return { usable: false, reason: p.reason || 'CLI not installed or not on PATH' };
+        if (healthMap[provName])
+            return { usable: false, reason: healthMap[provName] };
+        return { usable: true };
+    };
+    // Find a reliable fallback provider that is available
+    let fallback = 'antigravity';
+    if (!isUsable('antigravity').usable) {
+        const candidate = Object.keys(doctor.providers).find(k => isUsable(k).usable);
+        if (candidate)
+            fallback = candidate;
+    }
+    const roles = ['architect', 'worker', 'auditor'];
+    const currentRoleMapping = config.get('roleMapping') || {};
+    for (const role of roles) {
+        const assigned = config.get(`roleMapping.${role}`) || currentRoleMapping[role] || 'antigravity';
+        const check = isUsable(assigned);
+        if (!check.usable) {
+            let cleanReason = check.reason || 'Unavailable';
+            if (cleanReason.includes('quota') || cleanReason.includes('limit')) {
+                cleanReason = 'Quota limit reached';
+            }
+            else if (cleanReason.includes('not installed')) {
+                cleanReason = 'CLI is not installed';
+            }
+            vscode.window.showWarningMessage(`Agent "${assigned.toUpperCase()}" cannot be assigned to role "${role.toUpperCase()}": ${cleanReason}. Automatically switched to ready agent "${fallback.toUpperCase()}".`);
+            currentRoleMapping[role] = fallback;
+            await config.update(`roleMapping.${role}`, fallback, vscode.ConfigurationTarget.Global);
+            await config.update('roleMapping', currentRoleMapping, vscode.ConfigurationTarget.Global);
+        }
+    }
 }
 //# sourceMappingURL=extension.js.map

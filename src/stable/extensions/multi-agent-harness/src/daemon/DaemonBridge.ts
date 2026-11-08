@@ -15,6 +15,12 @@ export interface ProviderInfo {
   reason?: string;
 }
 
+export interface HealthInfo {
+  provider: string;
+  until?: number;
+  reason?: string;
+}
+
 export interface DoctorResult {
   python: string;
   os: string;
@@ -22,7 +28,7 @@ export interface DoctorResult {
   home: string;
   daemon: 'running' | 'stopped';
   providers: Record<string, ProviderInfo>;
-  health: unknown[];
+  health: HealthInfo[];
   note: string;
 }
 

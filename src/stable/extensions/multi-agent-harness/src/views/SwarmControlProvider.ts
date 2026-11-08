@@ -265,16 +265,19 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
     const existing = config.get<any[]>('customProviders') || [];
     const updated = existing.filter(p => p.id !== providerId);
     await config.update('customProviders', updated, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage(`Đã gỡ bỏ Agent CLI "${providerId}".`);
+    vscode.window.showInformationMessage(`Removed Custom Agent CLI "${providerId}".`);
     await this.sendProvidersState();
   }
 
   private async handleLoginProvider(provider: string): Promise<void> {
-    let cmd = '';
-    const prov = provider.toLowerCase();
+    const prov = (provider || '').toLowerCase();
     if (prov.includes('antigravity') || prov === 'agy') {
-      cmd = 'agy auth login';
-    } else if (prov.includes('codex')) {
+      vscode.window.showInformationMessage('Google Antigravity is already authenticated and active via Google credentials.');
+      return;
+    }
+
+    let cmd = '';
+    if (prov.includes('codex')) {
       cmd = 'codex login';
     } else if (prov.includes('claude')) {
       cmd = 'claude login';
@@ -285,11 +288,11 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
     }
 
     const term = vscode.window.createTerminal({
-      name: `Agent Login: ${provider.toUpperCase()}`
+      name: `Agent Auth: ${provider.toUpperCase()}`
     });
     term.show();
     term.sendText(cmd);
-    vscode.window.showInformationMessage(`Đã mở Terminal để đăng nhập ${provider.toUpperCase()}. Vui lòng hoàn tất trong Terminal.`);
+    vscode.window.showInformationMessage(`Opened Terminal for ${provider.toUpperCase()} authentication.`);
   }
 
   private async handleSetApiKey(provider: string): Promise<void> {
@@ -300,14 +303,14 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
     else if (prov.includes('antigravity') || prov.includes('gemini')) envVarName = 'GEMINI_API_KEY';
 
     const key = await vscode.window.showInputBox({
-      prompt: `Nhập giá trị ${envVarName} cho ${provider.toUpperCase()}`,
+      prompt: `Enter ${envVarName} for ${provider.toUpperCase()}`,
       password: true,
       placeHolder: 'sk-...'
     });
 
     if (key) {
       process.env[envVarName] = key;
-      vscode.window.showInformationMessage(`Đã lưu ${envVarName} vào môi trường runtime.`);
+      vscode.window.showInformationMessage(`Saved ${envVarName} to runtime environment.`);
       await this.sendProvidersState();
     }
   }
@@ -317,7 +320,7 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
       canSelectFiles: true,
       canSelectFolders: false,
       canSelectMany: false,
-      title: 'Chọn file thực thi CLI của Agent'
+      title: 'Select Agent CLI Executable'
     });
 
     if (uris && uris[0]) {

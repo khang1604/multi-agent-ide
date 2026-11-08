@@ -86,32 +86,79 @@
         "category": "Multi Agent"
       },
       {
+        "command": "multiAgent.assignRoles",
+        "title": "Multi Agent: Assign Swarm Roles",
+        "category": "Multi Agent"
+      },
+      {
         "command": "multiAgent.configureProviders",
-        "title": "Multi Agent: Configure Agent Providers & CLI",
+        "title": "Multi Agent: Configure Agent Settings & Providers",
         "category": "Multi Agent"
       }
     ],
     "configuration": {
-      "title": "Multi Agent IDE",
+      "title": "Multi Agent Swarm",
       "properties": {
         "workbench.agentCockpit.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable native 3-column Agent Cockpit layout on launch"
+          "description": "Enable native 3-column Agent Cockpit layout on launch (PLAN.md, Multi-Diff Staging, Swarm Activity)."
         },
-        "multiAgent.roleMapping": {
-          "type": "object",
-          "default": {
-            "architect": "antigravity",
-            "worker": "codex",
-            "auditor": "antigravity"
-          },
-          "description": "Mapping of Swarm workflow roles to specific agent CLI providers."
+        "multiAgent.roleMapping.architect": {
+          "type": "string",
+          "enum": ["antigravity", "codex", "claude", "copilot"],
+          "enumItemLabels": [
+            "Google Antigravity (Gemini)",
+            "OpenAI Codex",
+            "Anthropic Claude Code",
+            "GitHub Copilot"
+          ],
+          "default": "antigravity",
+          "description": "Lead Architect agent: decomposes engineering goals into living PLAN.md."
+        },
+        "multiAgent.roleMapping.worker": {
+          "type": "string",
+          "enum": ["antigravity", "codex", "claude", "copilot"],
+          "enumItemLabels": [
+            "Google Antigravity (Gemini)",
+            "OpenAI Codex",
+            "Anthropic Claude Code",
+            "GitHub Copilot"
+          ],
+          "default": "antigravity",
+          "description": "Algorithm Worker agent: implements source files and creates multi-diff staging."
+        },
+        "multiAgent.roleMapping.auditor": {
+          "type": "string",
+          "enum": ["antigravity", "codex", "claude", "copilot"],
+          "enumItemLabels": [
+            "Google Antigravity (Gemini)",
+            "OpenAI Codex",
+            "Anthropic Claude Code",
+            "GitHub Copilot"
+          ],
+          "default": "antigravity",
+          "description": "Security & QA Auditor agent: runs AST checks, security invariants, and unit verification."
+        },
+        "multiAgent.apiKey.gemini": {
+          "type": "string",
+          "default": "",
+          "description": "Gemini API Key (sets GEMINI_API_KEY environment variable for Google Antigravity / Gemini)."
+        },
+        "multiAgent.apiKey.openai": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key (sets OPENAI_API_KEY environment variable for Codex / OpenAI models)."
+        },
+        "multiAgent.apiKey.anthropic": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API Key (sets ANTHROPIC_API_KEY environment variable for Claude models)."
         },
         "multiAgent.customProviders": {
           "type": "array",
           "default": [],
-          "description": "Custom Agent CLIs registered by the operator.",
+          "description": "Custom Agent CLIs registered for Swarm workflows.",
           "items": {
             "type": "object",
             "properties": {
