@@ -74,11 +74,20 @@
     - Compact UI Architecture: 1-line agent pipeline status bar (`🧠 Arch` ➔ `⚡ Work` ➔ `🛡️ Audit`), auto-expanding input box with embedded send button (`➤`), and subtle status chips.
     - Real Scaffolding Execution: When prompted to initialize React web app structure or on Plan approval, Swarm Worker creates real project files (`package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/App.tsx`, `src/main.tsx`, `src/components/Header.tsx`, `src/index.css`) on disk and updates living `PLAN.md` checklist.
 
+
+12. **Tier 7 Implemented: Centralized Brain Storage & Complete Workspace Hygiene:**
+    - Centralized storage architecture: All living plans, activity streams, continuous staging diffs, and isolated worktrees are stored outside the target project at `~/.multi-agent-ide/brain/<slug>/` and `~/.multi-agent-ide/worktrees/<slug>/` (mirrored from Antigravity IDE design).
+    - Decoupled Codium core: Refactored `MultiAgentCockpit.ts` and `AgentMultiDiffSourceResolver.ts` in core Codium to eliminate all hardcoded references to workspace `.local/` paths (`.local/DIFF_STAGING.diff`, `.local/SWARM_ACTIVITY.md`, `rootUri/PLAN.md`).
+    - Zero Workspace Clutter: Verified launching target projects (e.g. `/home/nguyenkhang/Project/demo`) results in 0 `.local/` directories or metadata files polluting the user codebase.
+    - Codebase Cleanup: Removed dead `harness/integrations/vscode-chat` prototype, removed orphan views (`multi-agent.artifactsView`, `multi-agent.worktreeView`), deleted root `PLAN.md`, and fixed unittest discovery.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
 - **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
+- **Unit Tests:** 13/13 tests passed (`python3 -m unittest discover -s harness/tests`).
 - **Python Hub Daemon & CLI:** Verified via `harness/cli/hub.py` (doctor, status, start/stop).
 - **Desktop Launcher:** Verified valid XDG desktop specification.
-- **Runtime Testing:** Multi Agent IDE verified with Right Secondary Sidebar chat, persistent history, and active React scaffolding.
+- **Workspace Cleanliness:** Verified target projects remain completely clean without `.local` pollution.
+- **Git Remote:** Pushed to `origin feat/multi-agent-ide`.
 
 
