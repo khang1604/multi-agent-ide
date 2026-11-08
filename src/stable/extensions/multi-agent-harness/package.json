@@ -91,6 +91,11 @@
         "category": "Multi Agent"
       },
       {
+        "command": "multiAgent.loginCliAccount",
+        "title": "Multi Agent: Sign in with CLI Account",
+        "category": "Multi Agent"
+      },
+      {
         "command": "multiAgent.configureProviders",
         "title": "Multi Agent: Configure Agent Settings & Providers",
         "category": "Multi Agent"
@@ -143,17 +148,17 @@
         "multiAgent.apiKey.gemini": {
           "type": "string",
           "default": "",
-          "description": "Gemini API Key (sets GEMINI_API_KEY environment variable for Google Antigravity / Gemini)."
+          "description": "Fallback Gemini API Key. Used ONLY if CLI account login is unavailable."
         },
         "multiAgent.apiKey.openai": {
           "type": "string",
           "default": "",
-          "description": "OpenAI API Key (sets OPENAI_API_KEY environment variable for Codex / OpenAI models)."
+          "description": "Fallback OpenAI API Key. Used ONLY if Codex CLI account login or subscription is unavailable."
         },
         "multiAgent.apiKey.anthropic": {
           "type": "string",
           "default": "",
-          "description": "Anthropic API Key (sets ANTHROPIC_API_KEY environment variable for Claude models)."
+          "description": "Fallback Anthropic API Key. Used ONLY if Claude CLI account login is unavailable."
         },
         "multiAgent.customProviders": {
           "type": "array",

@@ -241,6 +241,95 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage(`Successfully assigned "${chosen.id.toUpperCase()}" as ${rolePick.label}.`);
     }),
 
+    vscode.commands.registerCommand('multiAgent.loginCliAccount', async () => {
+      let doctor: DoctorResult | undefined;
+      try {
+        doctor = await daemonBridge.getDoctor();
+      } catch (e) {
+        console.warn('Doctor probe error:', e);
+      }
+
+      const pick = await vscode.window.showQuickPick(
+        [
+          {
+            label: '$(account) Google Antigravity',
+            id: 'antigravity',
+            description: 'Google Account (agy CLI)',
+            detail: 'Launch interactive terminal session for Google Antigravity'
+          },
+          {
+            label: '$(account) OpenAI Codex',
+            id: 'codex',
+            description: 'ChatGPT Account (codex login)',
+            detail: 'Launch browser OAuth login for ChatGPT Plus / Team / Enterprise'
+          },
+          {
+            label: '$(account) Anthropic Claude Code',
+            id: 'claude',
+            description: 'Anthropic Account (claude login)',
+            detail: 'Launch browser login for Anthropic Claude Code CLI'
+          },
+          {
+            label: '$(account) GitHub Copilot',
+            id: 'copilot',
+            description: 'GitHub Account (gh auth login)',
+            detail: 'Authorize GitHub CLI and Copilot subscription'
+          }
+        ],
+        { placeHolder: 'Select an Agent CLI to sign in with your account' }
+      );
+
+      if (!pick) return;
+
+      if (pick.id === 'antigravity') {
+        const bin = findCliBinary('antigravity', doctor) || 'agy';
+        const term = vscode.window.createTerminal({ name: 'Agent CLI: Google Antigravity' });
+        term.show();
+        term.sendText(`"${bin}"`);
+        vscode.window.showInformationMessage('Opened Google Antigravity terminal session.');
+      } else if (pick.id === 'codex') {
+        const bin = findCliBinary('codex', doctor) || 'codex';
+        const term = vscode.window.createTerminal({ name: 'Agent CLI: Codex Login' });
+        term.show();
+        term.sendText(`"${bin}" login`);
+        vscode.window.showInformationMessage('Opening browser authentication for ChatGPT/Codex account. Please complete login in the opened window.');
+      } else if (pick.id === 'claude') {
+        const isInstalled = doctor?.providers?.claude?.available === true;
+        if (!isInstalled) {
+          const action = await vscode.window.showWarningMessage(
+            'Claude Code CLI is not installed. Please install it using npm first: npm install -g @anthropic-ai/claude-code',
+            'Copy Install Command'
+          );
+          if (action === 'Copy Install Command') {
+            await vscode.env.clipboard.writeText('npm install -g @anthropic-ai/claude-code');
+            vscode.window.showInformationMessage('Copied install command to clipboard.');
+          }
+          return;
+        }
+        const term = vscode.window.createTerminal({ name: 'Agent CLI: Claude Login' });
+        term.show();
+        term.sendText('claude login');
+        vscode.window.showInformationMessage('Opened Claude Code login in terminal.');
+      } else if (pick.id === 'copilot') {
+        const isInstalled = doctor?.providers?.copilot?.available === true;
+        if (!isInstalled) {
+          const action = await vscode.window.showWarningMessage(
+            'GitHub CLI (gh) is not installed. Please install it with: sudo apt install gh, then run gh auth login.',
+            'Copy Install Command'
+          );
+          if (action === 'Copy Install Command') {
+            await vscode.env.clipboard.writeText('sudo apt install -y gh && gh auth login');
+            vscode.window.showInformationMessage('Copied install command to clipboard.');
+          }
+          return;
+        }
+        const term = vscode.window.createTerminal({ name: 'Agent CLI: GitHub Auth' });
+        term.show();
+        term.sendText('gh auth login');
+        vscode.window.showInformationMessage('Opened GitHub CLI authentication in terminal.');
+      }
+    }),
+
     vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
       await vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgent');
     })
@@ -449,12 +538,36 @@ async function validateAndEnforceRoles(daemonBridge: DaemonBridge): Promise<void
       }
 
       vscode.window.showWarningMessage(
-        `Agent "${assigned.toUpperCase()}" cannot be assigned to role "${role.toUpperCase()}": ${cleanReason}. Automatically switched to ready agent "${fallback.toUpperCase()}".`
-      );
+        `Agent "${assigned.toUpperCase()}" cannot be assigned to role "${role.toUpperCase()}": ${cleanReason}. Automatically switched to ready agent "${fallback.toUpperCase()}".`,
+        'Sign in with CLI Account',
+        'Configure Settings'
+      ).then((action) => {
+        if (action === 'Sign in with CLI Account') {
+          vscode.commands.executeCommand('multiAgent.loginCliAccount');
+        } else if (action === 'Configure Settings') {
+          vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgent');
+        }
+      });
 
       currentRoleMapping[role] = fallback;
       await config.update(`roleMapping.${role}`, fallback, vscode.ConfigurationTarget.Global);
       await config.update('roleMapping', currentRoleMapping, vscode.ConfigurationTarget.Global);
     }
   }
+}
+
+function findCliBinary(name: string, doctor?: DoctorResult): string | undefined {
+  if (doctor?.providers?.[name]?.command?.[0]) {
+    const cmd = doctor.providers[name].command[0];
+    if (fsSync.existsSync(cmd)) return cmd;
+  }
+  const home = process.env.HOME || '';
+  if (name === 'antigravity') {
+    const p = path.join(home, '.gemini', 'bin', 'agy');
+    if (fsSync.existsSync(p)) return p;
+  } else if (name === 'codex') {
+    const p = path.join(home, '.codex', 'plugins', '.plugin-appserver', 'codex');
+    if (fsSync.existsSync(p)) return p;
+  }
+  return undefined;
 }
