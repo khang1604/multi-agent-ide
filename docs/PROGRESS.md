@@ -117,12 +117,13 @@
     - Added dedicated top-bar login action button in Swarm Chat for instantaneous account access.
     - Default English UI and strict role mapping constraints preventing uninstalled or out-of-quota providers from being selected.
 
-19. **Chat UI Aesthetics, Spacing & Layout Polish:**
-    - Optimized sidebar padding and margins (`body: 8px 12px 10px 12px`, `.chat-container: gap: 12px; padding: 4px 4px 8px 2px`).
-    - User Chat Bubbles: Upgraded with modern asymmetric rounded corners (`12px 12px 2px 12px`), elevated deep-blue styling, and comfortable text padding.
-    - Agent Chat Cards: Encapsulated responses in clean, translucent cards (`rgba(255, 255, 255, 0.025)`) with subtle borders and 8px 12px padding.
-    - Interactive Thinking Header: Refined with pill badge styling (`padding: 3px 8px; border-radius: 5px; background: rgba(255, 255, 255, 0.035)`), smooth chevron transition, and indented timeline border.
-    - Auto-Expanding Input Box: Enhanced with 8px radius, 6px 8px padding, focus glow ring, and a 28x28px send button.
+19. **Google Antigravity-Style Borderless Chat Design:**
+    - Eliminated all artificial rectangular borders and boxy containers from the chat stream.
+    - User Message Bubbles: Smooth dark slate pills (`#1e2638`, `border-radius: 14px 14px 2px 14px`) aligned right with zero borders and subtle drop shadow.
+    - Agent Response Stream: 100% borderless, transparent canvas, typography-first (`font-size: 13px; line-height: 1.6; color: #e2e8f0;`) matching Antigravity IDE and Cursor.
+    - Iconic Antigravity Thinking Accordion: Completely borderless inline trigger (`Thinking (Xs) ⌵`) with hair-line slate timeline border (`1.5px solid rgba(148, 163, 184, 0.25)`) and zero container background.
+    - HUD Swimlane Capsules: Redesigned into borderless modern pills (`border-radius: 20px`, `background: rgba(255, 255, 255, 0.035)`) with soft ambient color washes on active state.
+    - Floating Input Card: Antigravity-inspired floating capsule with `12px` radius, subtle `0.08` hairline border, focus glow ring, and rounded `#2563eb` send button.
 
 20. **Release v0.1.0-beta Published:**
     - Git tag `v0.1-beta` and GitHub Release `v0.1.0-beta` published at `https://github.com/khang1604/multi-agent-ide/releases/tag/v0.1.0-beta`.
