@@ -94,6 +94,11 @@
         "command": "multiAgent.simulateAuditorReport",
         "title": "Multi Agent: Simulate Auditor Check",
         "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.configureProviders",
+        "title": "Multi Agent: Configure Agent Providers & CLI",
+        "category": "Multi Agent"
       }
     ],
     "configuration": {
@@ -103,6 +108,31 @@
           "type": "boolean",
           "default": true,
           "description": "Enable native 3-column Agent Cockpit layout on launch"
+        },
+        "multiAgent.roleMapping": {
+          "type": "object",
+          "default": {
+            "architect": "antigravity",
+            "worker": "codex",
+            "auditor": "antigravity"
+          },
+          "description": "Mapping of Swarm workflow roles to specific agent CLI providers."
+        },
+        "multiAgent.customProviders": {
+          "type": "array",
+          "default": [],
+          "description": "Custom Agent CLIs registered by the operator.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "command": { "type": "string" },
+              "roles": { "type": "array", "items": { "type": "string" } },
+              "defaultModel": { "type": "string" }
+            },
+            "required": ["id", "name", "command"]
+          }
         }
       }
     }

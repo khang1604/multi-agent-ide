@@ -101,6 +101,10 @@ function activate(context) {
         ]);
         vscode.window.showInformationMessage('Auditor report simulated: diagnostics updated.');
     }));
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
+        await vscode.commands.executeCommand('multi-agent.swarmControlView.focus');
+        swarmProvider.openConfigPanel();
+    }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.newSession', async () => {
         const input = await vscode.window.showInputBox({
             prompt: 'Describe the engineering task for the Multi Agent Swarm',
