@@ -68,11 +68,17 @@
     - Two-way synchronization with VS Code user `settings.json` and added command `multiAgent.configureProviders`.
     - Seeded default living `PLAN.md` template in the project root for automatic Cockpit Column 1 hydration.
 
+11. **Tier 6 Implemented: Right-Sidebar Chat, Chat Persistence, and Real Scaffolding Execution:**
+    - Moved Swarm Chat from Primary Activity Bar to Secondary Sidebar (Right pane, matching Google Antigravity IDE and Cursor layout).
+    - Persistent Chat History: Messages saved to `.local/chat_history.json` and re-hydrated on webview reload, completely solving chat history loss when browsing files in Explorer.
+    - Compact UI Architecture: 1-line agent pipeline status bar (`🧠 Arch` ➔ `⚡ Work` ➔ `🛡️ Audit`), auto-expanding input box with embedded send button (`➤`), and subtle status chips.
+    - Real Scaffolding Execution: When prompted to initialize React web app structure or on Plan approval, Swarm Worker creates real project files (`package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/App.tsx`, `src/main.tsx`, `src/components/Header.tsx`, `src/index.css`) on disk and updates living `PLAN.md` checklist.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
 - **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
 - **Python Hub Daemon & CLI:** Verified via `harness/cli/hub.py` (doctor, status, start/stop).
 - **Desktop Launcher:** Verified valid XDG desktop specification.
-- **Runtime Testing:** Standalone Electron instance running with full Cockpit, Activity Bar Chat HUD, and Agent Settings Drawer.
+- **Runtime Testing:** Multi Agent IDE verified with Right Secondary Sidebar chat, persistent history, and active React scaffolding.
 
 
