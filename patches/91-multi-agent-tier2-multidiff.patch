@@ -1,0 +1,11 @@
+diff --git a/src/vs/workbench/workbench.common.main.ts b/src/vs/workbench/workbench.common.main.ts
+index b2aaf10f..1bc99938 100644
+--- a/src/vs/workbench/workbench.common.main.ts
++++ b/src/vs/workbench/workbench.common.main.ts
+@@ -306,3 +306,6 @@ import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
+ // Multi Diff Editor
+ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
+ 
++// Multi Agent Swarm IDE (Tier 2)
++import './contrib/multiAgent/browser/multiAgent.contribution.js';
++

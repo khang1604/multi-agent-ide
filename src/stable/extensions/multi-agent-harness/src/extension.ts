@@ -97,8 +97,13 @@ export function activate(context: vscode.ExtensionContext) {
         const planDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
         await vscode.window.showTextDocument(planDoc, { viewColumn: vscode.ViewColumn.One, preview: false });
 
-        const diffDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(diffPath));
-        await vscode.window.showTextDocument(diffDoc, { viewColumn: vscode.ViewColumn.Two, preview: false });
+        // Column 2: Prefer Native Continuous Multi-Diff Editor (Tier 2)
+        try {
+          await vscode.commands.executeCommand('workbench.action.multiAgent.openContinuousDiff');
+        } catch {
+          const diffDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(diffPath));
+          await vscode.window.showTextDocument(diffDoc, { viewColumn: vscode.ViewColumn.Two, preview: false });
+        }
 
         const actDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(activityPath));
         await vscode.window.showTextDocument(actDoc, { viewColumn: vscode.ViewColumn.Three, preview: false });

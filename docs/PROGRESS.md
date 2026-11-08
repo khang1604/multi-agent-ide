@@ -32,9 +32,17 @@
    - Exported upstream patch: `patches/90-multi-agent-tier1-cockpit.patch`.
    - Updated `multi-agent-harness` extension `package.json` to contribute viewsContainer to `secondarySidebar` and declare `workbench.agentCockpit.enabled`.
    - Full client compilation (`npm run compile-client`) verified with 0 errors; built artifacts verified at `vscode/out/`.
+7. **Tier 2 Implemented: Native Continuous Multi-Diff Editor & Source Resolver:**
+   - Authored `AgentMultiDiffSourceResolver` in `src/stable/src/vs/workbench/contrib/multiAgent/browser/agentMultiDiffSourceResolver.ts` (and synced to `vscode/...`).
+   - Implemented `IMultiDiffSourceResolver` registering the `agent-multi-diff` virtual scheme with `IMultiDiffSourceResolverService`.
+   - Created `AgentMultiDiffContribution` and `OpenAgentMultiDiffEditorAction` (`workbench.action.multiAgent.openContinuousDiff`) in `multiAgent.contribution.ts`.
+   - Connected `editorGroupsService.whenRestored` hook to automatically upgrade Column 2 into the native VS Code Multi-Diff Editor when Cockpit layout is active.
+   - Injected contribution import into `vscode/src/vs/workbench/workbench.common.main.ts` and generated upstream patch `patches/91-multi-agent-tier2-multidiff.patch`.
+   - Updated `multi-agent-harness` extension command `multiAgent.setupCockpitLayout` to trigger the native multi-diff editor in Column 2.
+   - Client TS compilation passed with 0 errors; output verified in `vscode/out/`.
 
 ## Prioritized Next Steps
-1. **Tier 2 Implementation (Native Continuous Multi-Diff):** Wire virtual document provider `agent-diff://` directly into VS Code's native `MultiDiffEditorInput` (`vscode/src/vs/workbench/contrib/multiDiffEditor/browser/`) and `IMultiDiffSourceResolverService`.
-2. **Dynamic Model Integration:** Wire local Ollama / OpenRouter API endpoints into `multi-agent-harness` sidebar.
+1. **Tier 3 (IPC Daemon & Swarm HUD WebSocket):** Wire `harness/engine/api.py` via Unix Domain Socket (`.local/swarm.sock`) to feed real-time agent swimlanes and streaming logs into `SwarmControlProvider.ts`.
+2. **Tier 4 (Auditor Diagnostics & Safety Gate):** Hook `Gemini Auditor` into `vscode.DiagnosticCollection` for in-editor red squiggles and deploy human confirmation gate for terminal mutations.
 3. **Desktop Entry:** Generate `~/.local/share/applications/multi-agent-ide.desktop` for system application menu launcher.
 
