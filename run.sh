@@ -24,6 +24,7 @@ echo "Launching Multi Agent IDE on target: $TARGET..."
 cd "$APP_ROOT"
 setsid -f "$BINARY" . \
   --disable-gpu \
+  --disable-workspace-trust \
   --disable-extension=vscode.vscode-api-tests \
   "$TARGET" >/dev/null 2>&1
 echo "Multi Agent IDE launched successfully in background."
