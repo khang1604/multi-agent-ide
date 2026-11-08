@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   // 2. Register Webview Views with Daemon Bridge
-  const swarmProvider = new SwarmControlProvider(context.extensionUri, worktreeMgr, artifactMgr, daemonBridge);
+  const swarmProvider = new SwarmControlProvider(context.extensionUri, worktreeMgr, artifactMgr, daemonBridge, rootPath);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(SwarmControlProvider.viewType, swarmProvider)
   );

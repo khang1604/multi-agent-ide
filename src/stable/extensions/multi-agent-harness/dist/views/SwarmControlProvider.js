@@ -2,10 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SwarmControlProvider = void 0;
 const vscode = require("vscode");
+const path = require("path");
+const fs = require("fs/promises");
 class SwarmControlProvider {
     _extensionUri;
     artifactMgr;
     daemonBridge;
+    projectRoot;
     static viewType = 'multi-agent.swarmControlView';
     _view;
     agents = [
@@ -34,10 +37,11 @@ class SwarmControlProvider {
             tokensUsed: 0,
         },
     ];
-    constructor(_extensionUri, _worktreeMgr, artifactMgr, daemonBridge) {
+    constructor(_extensionUri, _worktreeMgr, artifactMgr, daemonBridge, projectRoot) {
         this._extensionUri = _extensionUri;
         this.artifactMgr = artifactMgr;
         this.daemonBridge = daemonBridge;
+        this.projectRoot = projectRoot;
         if (this.daemonBridge) {
             this.daemonBridge.onDidStatusChange((status) => {
                 this.syncWithDaemonStatus(status);
@@ -246,8 +250,73 @@ class SwarmControlProvider {
             }
         }
         // Update living PLAN.md
-        const planContent = `# Living PLAN.md\n\n> Objective: ${prompt}\n\n## Tasks\n- [ ] [Architect] Decompose and validate task boundaries\n- [ ] [Worker] Create worktree & implement code changes\n- [ ] [Auditor] Verify lint, types, and test assertions\n`;
+        const planContent = `# Living PLAN.md
+
+> Objective: ${prompt}
+> Status: Planning & Architecture Analysis
+
+## 1. Architecture & Boundaries
+- **Objective:** ${prompt}
+- **Assigned Architect:** Lead Architect (Google Antigravity / Claude)
+- **Assigned Worker:** Worker Agent (OpenAI Codex)
+- **Assigned Auditor:** Auditor Agent (Gemini Auditor)
+
+## 2. Work Breakdown Checklist
+- [ ] [Architect] Decompose domain structure & dependencies
+- [ ] [Worker] Scaffold workspace components & entry points
+- [ ] [Worker] Implement responsive layout and modern components
+- [ ] [Auditor] Run automated static analysis, linting, and tests
+- [ ] [Lead] Review continuous multi-diff and merge to workspace
+
+## 3. Verification Criteria
+- All TypeScript types narrow cleanly
+- 0 lint / build errors
+`;
         await this.artifactMgr.saveArtifact('PLAN.md', planContent);
+        const targetRoot = this.projectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (targetRoot) {
+            try {
+                await fs.mkdir(path.join(targetRoot, '.local'), { recursive: true });
+            }
+            catch { }
+            try {
+                await fs.writeFile(path.join(targetRoot, 'PLAN.md'), planContent, 'utf-8');
+            }
+            catch (e) {
+                console.warn('[SwarmControlProvider] Failed to write root PLAN.md:', e);
+            }
+            try {
+                const timeStr = new Date().toLocaleTimeString();
+                const activityContent = `# Swarm Activity Stream\n\n- [${timeStr}] [Architect] Received objective: "${prompt}"\n- [${timeStr}] [Architect] Decomposed requirements and generated Living PLAN.md\n- [${timeStr}] [Hub Daemon] Workflow active & synchronizing\n- [${timeStr}] [Worker] Standby awaiting plan approval (Click "Approve Plan" to spawn Worktree)\n`;
+                await fs.writeFile(path.join(targetRoot, '.local', 'SWARM_ACTIVITY.md'), activityContent, 'utf-8');
+                await fs.writeFile(path.join(targetRoot, 'SWARM_ACTIVITY.md'), activityContent, 'utf-8');
+            }
+            catch { }
+            try {
+                const diffContent = `# Continuous Multi-Diff Staging (Awaiting Implementation)
+# Objective: ${prompt}
+# Status: Staged by Swarm Architect
+
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,18 @@
++{
++  "name": "react-web-app",
++  "private": true,
++  "version": "0.1.0",
++  "type": "module",
++  "scripts": {
++    "dev": "vite",
++    "build": "tsc -b && vite build",
++    "lint": "eslint .",
++    "preview": "vite preview"
++  }
++}
+`;
+                await fs.writeFile(path.join(targetRoot, '.local', 'DIFF_STAGING.diff'), diffContent, 'utf-8');
+            }
+            catch { }
+        }
     }
     getHtmlForWebview() {
         return `<!DOCTYPE html>
