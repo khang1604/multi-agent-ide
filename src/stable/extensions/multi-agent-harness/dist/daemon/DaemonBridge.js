@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DaemonBridge = void 0;
 const path = require("path");
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const child_process_1 = require("child_process");
 const util_1 = require("util");
 const vscode = require("vscode");
@@ -11,6 +12,7 @@ class DaemonBridge {
     projectRoot;
     static instance;
     hubScriptPath;
+    resolvedPythonBin = '/usr/bin/python3';
     syncTimer;
     _onDidStatusChange = new vscode.EventEmitter();
     onDidStatusChange = this._onDidStatusChange.event;
@@ -20,7 +22,29 @@ class DaemonBridge {
     };
     constructor(projectRoot) {
         this.projectRoot = projectRoot;
-        this.hubScriptPath = path.join(projectRoot, 'harness', 'cli', 'hub.py');
+        const candidates = [
+            process.env.MULTI_AGENT_HUB_PATH,
+            path.resolve(__dirname, '../../../../harness/cli/hub.py'),
+            path.resolve(__dirname, '../../../../../harness/cli/hub.py'),
+            path.resolve(__dirname, '../../../../../../harness/cli/hub.py'),
+            '/home/nguyenkhang/Project/multi-agent-ide/harness/cli/hub.py',
+            path.join(projectRoot, 'harness', 'cli', 'hub.py'),
+        ].filter(Boolean);
+        this.hubScriptPath = candidates.find(c => fsSync.existsSync(c)) || candidates[0];
+        const pyCandidates = [
+            process.env.PYTHON_BIN,
+            '/usr/bin/python3',
+            '/usr/local/bin/python3',
+            '/bin/python3',
+            'python3',
+            'python'
+        ].filter(Boolean);
+        for (const py of pyCandidates) {
+            if (py.startsWith('/') && fsSync.existsSync(py)) {
+                this.resolvedPythonBin = py;
+                break;
+            }
+        }
     }
     static getInstance(projectRoot) {
         if (!DaemonBridge.instance && projectRoot) {
@@ -29,29 +53,32 @@ class DaemonBridge {
         return DaemonBridge.instance;
     }
     async init() {
-        // Verify hub script exists
         try {
             await fs.access(this.hubScriptPath);
         }
         catch {
-            // Fallback search in parent directory if opened in subfolder
-            const parentHub = path.join(this.projectRoot, '..', 'harness', 'cli', 'hub.py');
-            try {
-                await fs.access(parentHub);
-                this.hubScriptPath = parentHub;
-            }
-            catch {
-                console.warn(`[DaemonBridge] hub.py not found at ${this.hubScriptPath}`);
-            }
+            console.warn(`[DaemonBridge] hub.py not found at ${this.hubScriptPath}`);
         }
     }
     async runHubCommand(args) {
-        const pythonBin = 'python3';
+        const fullPath = [
+            process.env.PATH,
+            '/usr/local/bin',
+            '/usr/bin',
+            '/bin',
+            '/usr/local/sbin',
+            '/usr/sbin',
+            '/sbin',
+            path.join(process.env.HOME || '', '.local/bin'),
+            path.join(process.env.HOME || '', '.gemini/bin'),
+            path.join(process.env.HOME || '', '.cargo/bin'),
+        ].filter(Boolean).join(':');
         try {
-            const { stdout } = await execFileAsync(pythonBin, [this.hubScriptPath, ...args], {
+            const { stdout } = await execFileAsync(this.resolvedPythonBin, [this.hubScriptPath, ...args], {
                 cwd: path.dirname(this.hubScriptPath),
                 env: {
                     ...process.env,
+                    PATH: fullPath,
                     PYTHONPATH: path.join(path.dirname(this.hubScriptPath), '..'),
                 }
             });
@@ -97,14 +124,25 @@ class DaemonBridge {
                 console.warn('[DaemonBridge] Auto-start daemon error:', err);
             }
         }
+        // Ensure project is registered in Hub database
+        try {
+            const projects = await this.runHubCommand(['projects']);
+            const exists = Array.isArray(projects) && projects.some(p => p.name === project || p.name === 'default');
+            if (!exists) {
+                await this.runHubCommand(['project-add', project, this.projectRoot, '--verify', '[["true"]]']);
+            }
+        }
+        catch (e) {
+            console.warn('[DaemonBridge] Auto register project warning:', e);
+        }
         return await this.runHubCommand([
             'run',
-            '--project', project,
-            '--objective', objective
+            project,
+            objective
         ]);
     }
     async cancel(workflowId) {
-        return await this.runHubCommand(['cancel', '--workflow-id', workflowId]);
+        return await this.runHubCommand(['cancel', workflowId]);
     }
     startSync(intervalMs = 3000) {
         if (this.syncTimer) {

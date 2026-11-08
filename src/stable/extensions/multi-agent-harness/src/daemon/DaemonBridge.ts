@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
@@ -47,6 +48,7 @@ export interface StatusResult {
 export class DaemonBridge {
   private static instance: DaemonBridge;
   private hubScriptPath: string;
+  private resolvedPythonBin: string = '/usr/bin/python3';
   private syncTimer?: NodeJS.Timeout;
   private _onDidStatusChange = new vscode.EventEmitter<StatusResult>();
   public readonly onDidStatusChange = this._onDidStatusChange.event;
@@ -57,7 +59,31 @@ export class DaemonBridge {
   };
 
   constructor(private projectRoot: string) {
-    this.hubScriptPath = path.join(projectRoot, 'harness', 'cli', 'hub.py');
+    const candidates = [
+      process.env.MULTI_AGENT_HUB_PATH,
+      path.resolve(__dirname, '../../../../harness/cli/hub.py'),
+      path.resolve(__dirname, '../../../../../harness/cli/hub.py'),
+      path.resolve(__dirname, '../../../../../../harness/cli/hub.py'),
+      '/home/nguyenkhang/Project/multi-agent-ide/harness/cli/hub.py',
+      path.join(projectRoot, 'harness', 'cli', 'hub.py'),
+    ].filter(Boolean) as string[];
+
+    this.hubScriptPath = candidates.find(c => fsSync.existsSync(c)) || candidates[0];
+
+    const pyCandidates = [
+      process.env.PYTHON_BIN,
+      '/usr/bin/python3',
+      '/usr/local/bin/python3',
+      '/bin/python3',
+      'python3',
+      'python'
+    ].filter(Boolean) as string[];
+    for (const py of pyCandidates) {
+      if (py.startsWith('/') && fsSync.existsSync(py)) {
+        this.resolvedPythonBin = py;
+        break;
+      }
+    }
   }
 
   public static getInstance(projectRoot?: string): DaemonBridge {
@@ -68,28 +94,33 @@ export class DaemonBridge {
   }
 
   public async init(): Promise<void> {
-    // Verify hub script exists
     try {
       await fs.access(this.hubScriptPath);
     } catch {
-      // Fallback search in parent directory if opened in subfolder
-      const parentHub = path.join(this.projectRoot, '..', 'harness', 'cli', 'hub.py');
-      try {
-        await fs.access(parentHub);
-        this.hubScriptPath = parentHub;
-      } catch {
-        console.warn(`[DaemonBridge] hub.py not found at ${this.hubScriptPath}`);
-      }
+      console.warn(`[DaemonBridge] hub.py not found at ${this.hubScriptPath}`);
     }
   }
 
   private async runHubCommand<T>(args: string[]): Promise<T> {
-    const pythonBin = 'python3';
+    const fullPath = [
+      process.env.PATH,
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      '/usr/local/sbin',
+      '/usr/sbin',
+      '/sbin',
+      path.join(process.env.HOME || '', '.local/bin'),
+      path.join(process.env.HOME || '', '.gemini/bin'),
+      path.join(process.env.HOME || '', '.cargo/bin'),
+    ].filter(Boolean).join(':');
+
     try {
-      const { stdout } = await execFileAsync(pythonBin, [this.hubScriptPath, ...args], {
+      const { stdout } = await execFileAsync(this.resolvedPythonBin, [this.hubScriptPath, ...args], {
         cwd: path.dirname(this.hubScriptPath),
         env: {
           ...process.env,
+          PATH: fullPath,
           PYTHONPATH: path.join(path.dirname(this.hubScriptPath), '..'),
         }
       });
@@ -138,15 +169,26 @@ export class DaemonBridge {
       }
     }
 
+    // Ensure project is registered in Hub database
+    try {
+      const projects = await this.runHubCommand<Array<{ name: string; id: string }>>(['projects']);
+      const exists = Array.isArray(projects) && projects.some(p => p.name === project || p.name === 'default');
+      if (!exists) {
+        await this.runHubCommand(['project-add', project, this.projectRoot, '--verify', '[["true"]]']);
+      }
+    } catch (e) {
+      console.warn('[DaemonBridge] Auto register project warning:', e);
+    }
+
     return await this.runHubCommand<{ id: string; status: string }>([
       'run',
-      '--project', project,
-      '--objective', objective
+      project,
+      objective
     ]);
   }
 
   public async cancel(workflowId: string): Promise<{ cancelled: boolean }> {
-    return await this.runHubCommand<{ cancelled: boolean }>(['cancel', '--workflow-id', workflowId]);
+    return await this.runHubCommand<{ cancelled: boolean }>(['cancel', workflowId]);
   }
 
   public startSync(intervalMs = 3000): void {
