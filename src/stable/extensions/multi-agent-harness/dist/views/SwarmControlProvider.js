@@ -1605,6 +1605,7 @@ button:hover {
         else {
             historyContent = visibleMessages.map(m => {
                 const thinkingHtml = m.thinking ? this.renderThinkingHtml(m.thinking) : '';
+                const statusClass = m.text.startsWith('✓') ? ' status-success' : m.text.startsWith('✕') ? ' status-discard' : '';
                 return `
           <div class="chat-bubble ${m.role}">
             <div class="bubble-meta">
@@ -1612,7 +1613,7 @@ button:hover {
               <span>${m.time}</span>
             </div>
             ${thinkingHtml}
-            <div class="bubble-text">${this.escapeHtml(m.text)}</div>
+            <div class="bubble-text${statusClass}">${this.escapeHtml(m.text)}</div>
           </div>
         `;
             }).join('');
@@ -1640,17 +1641,17 @@ button:hover {
       justify-content: flex-end;
       align-items: center;
       margin-bottom: 8px;
-      padding: 2px 2px 6px 2px;
-      border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+      padding: 0 0 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       flex-shrink: 0;
-      height: 28px;
+      height: 26px;
     }
 
-    /* Swarm Agent Swimlanes */
+    /* Swarm Agent Swimlanes (Antigravity Pill HUD) */
     .swarm-swimlanes {
       display: flex;
       gap: 6px;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       flex-shrink: 0;
     }
     .agent-pill-card {
@@ -1658,10 +1659,10 @@ button:hover {
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 6px;
-      padding: 5px 8px;
+      background: rgba(255, 255, 255, 0.035);
+      border: none !important;
+      border-radius: 20px;
+      padding: 4px 8px;
       cursor: default;
       transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       min-width: 0;
@@ -1670,7 +1671,7 @@ button:hover {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #484f58;
+      background: #475569;
       flex-shrink: 0;
       transition: background 0.2s ease, box-shadow 0.2s ease;
     }
@@ -1684,69 +1685,69 @@ button:hover {
       font-size: 8.5px;
       font-weight: 700;
       letter-spacing: 0.2px;
-      color: #8b949e;
+      color: #94a3b8;
       white-space: nowrap;
       text-overflow: ellipsis;
       overflow: hidden;
     }
     .agent-pill-card .pill-status {
       font-size: 7.5px;
-      color: #484f58;
+      color: #64748b;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.2px;
     }
 
-    /* Active States with Glow & Pulsing */
+    /* Active States with Soft Background Glow (Antigravity Style) */
     .agent-pill-card.planning {
-      background: rgba(56, 139, 253, 0.12);
-      border-color: rgba(56, 139, 253, 0.45);
-      box-shadow: 0 0 8px rgba(56, 139, 253, 0.2);
+      background: rgba(59, 130, 246, 0.15);
+      border: none !important;
+      box-shadow: none;
     }
     .agent-pill-card.planning .pill-dot {
-      background: #58a6ff;
-      box-shadow: 0 0 6px #58a6ff;
+      background: #60a5fa;
+      box-shadow: 0 0 6px #60a5fa;
       animation: pulse-dot 1.2s infinite ease-in-out;
     }
     .agent-pill-card.planning .pill-role {
-      color: #58a6ff;
+      color: #60a5fa;
     }
     .agent-pill-card.planning .pill-status {
-      color: #79c0ff;
+      color: #93c5fd;
     }
 
     .agent-pill-card.executing {
-      background: rgba(210, 153, 34, 0.12);
-      border-color: rgba(210, 153, 34, 0.45);
-      box-shadow: 0 0 8px rgba(210, 153, 34, 0.2);
+      background: rgba(245, 158, 11, 0.15);
+      border: none !important;
+      box-shadow: none;
     }
     .agent-pill-card.executing .pill-dot {
-      background: #d29922;
-      box-shadow: 0 0 6px #d29922;
+      background: #f59e0b;
+      box-shadow: 0 0 6px #f59e0b;
       animation: pulse-dot 1.2s infinite ease-in-out;
     }
     .agent-pill-card.executing .pill-role {
-      color: #e3b341;
+      color: #fbbf24;
     }
     .agent-pill-card.executing .pill-status {
-      color: #f0883e;
+      color: #fcd34d;
     }
 
     .agent-pill-card.reviewing {
-      background: rgba(46, 160, 67, 0.12);
-      border-color: rgba(46, 160, 67, 0.45);
-      box-shadow: 0 0 8px rgba(46, 160, 67, 0.2);
+      background: rgba(34, 197, 94, 0.15);
+      border: none !important;
+      box-shadow: none;
     }
     .agent-pill-card.reviewing .pill-dot {
-      background: #3fb950;
-      box-shadow: 0 0 6px #3fb950;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
       animation: pulse-dot 1.2s infinite ease-in-out;
     }
     .agent-pill-card.reviewing .pill-role {
-      color: #3fb950;
+      color: #4ade80;
     }
     .agent-pill-card.reviewing .pill-status {
-      color: #56d364;
+      color: #86efac;
     }
 
     @keyframes pulse-dot {
@@ -1842,32 +1843,35 @@ button:hover {
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding: 4px 4px 8px 2px;
-      margin-bottom: 8px;
+      gap: 16px;
+      padding: 4px 2px 14px 2px;
+      margin-bottom: 6px;
     }
     .chat-bubble {
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      line-height: 1.45;
+      padding: 0;
+      border-radius: 0;
+      font-size: 13px;
+      line-height: 1.5;
       word-break: break-word;
+      border: none !important;
+      box-shadow: none !important;
     }
     .chat-bubble.user {
-      background: #194a7a;
+      background: #1e2638;
       align-self: flex-end;
-      max-width: 85%;
-      color: #ffffff;
-      padding: 8px 14px;
-      border-radius: 12px 12px 2px 12px;
+      max-width: 84%;
+      color: #f8fafc;
+      padding: 9px 14px;
+      border-radius: 14px 14px 2px 14px;
       margin: 2px 0 4px 0;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      border: none !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     }
     .chat-bubble.user .bubble-meta {
       font-size: 9.5px;
       font-weight: 600;
-      opacity: 0.85;
-      margin-bottom: 4px;
+      color: #94a3b8;
+      margin-bottom: 3px;
       display: flex;
       justify-content: space-between;
       gap: 10px;
@@ -1875,38 +1879,54 @@ button:hover {
     .chat-bubble.agent,
     .chat-bubble.worker,
     .chat-bubble.auditor {
-      background: rgba(255, 255, 255, 0.025);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
       align-self: flex-start;
-      max-width: 100%;
-      width: 100%;
-      padding: 8px 12px 10px 12px;
-      margin: 2px 0 6px 0;
+      max-width: 100% !important;
+      width: 100% !important;
+      padding: 2px 0 8px 0 !important;
+      margin: 0 !important;
       box-sizing: border-box;
     }
     .chat-bubble.agent .bubble-meta,
     .chat-bubble.worker .bubble-meta,
     .chat-bubble.auditor .bubble-meta {
-      display: none;
+      display: none !important;
     }
     .chat-chip.system {
       display: none; /* Suppress system chips in main chat; all telemetry routes to Thinking */
     }
     .bubble-text {
       white-space: pre-wrap;
-      font-size: 12.5px;
-      line-height: 1.55;
-      color: var(--vscode-foreground, #e6edf3);
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e2e8f0;
       padding: 2px 0;
     }
+    .bubble-text.status-success {
+      color: #4ade80;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+    }
+    .bubble-text.status-discard {
+      color: #f87171;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+    }
 
-    /* Thinking Header & Steps */
+    /* Antigravity Iconic Borderless Thinking Accordion */
     .thinking-container {
       position: relative;
-      margin: 4px 0 8px 0;
-      font-size: 11px;
+      margin: 2px 0 6px 0;
+      font-size: 11.5px;
       font-family: var(--vscode-font-family);
     }
     .thinking-container.collapsed .thinking-body {
@@ -1918,29 +1938,28 @@ button:hover {
     .thinking-header {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       cursor: pointer;
       user-select: none;
-      color: var(--vscode-descriptionForeground, #8b949e);
+      color: #94a3b8;
       font-weight: 500;
-      font-size: 11px;
-      padding: 3px 8px;
-      margin-bottom: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.035);
-      border-radius: 5px;
-      transition: all 0.15s ease;
+      font-size: 11.5px;
+      padding: 1px 0 !important;
+      margin-bottom: 2px;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition: color 0.15s ease;
     }
     .thinking-header:hover {
-      color: var(--vscode-foreground, #f0f6fc);
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.15);
+      color: #f1f5f9;
+      background: transparent !important;
     }
     .thinking-header .chevron {
       transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       font-size: 10px;
       display: inline-block;
-      color: #7d8590;
+      color: #64748b;
       margin-left: 2px;
     }
     .thinking-body {
@@ -1949,11 +1968,11 @@ button:hover {
       gap: 5px;
       margin-top: 4px;
       margin-left: 2px;
-      padding: 6px 8px 6px 10px;
-      border-left: 2px solid rgba(88, 166, 255, 0.35);
-      background: rgba(0, 0, 0, 0.12);
-      border-radius: 0 6px 6px 0;
-      color: #adbac7;
+      padding: 2px 0 6px 12px;
+      border-left: 1.5px solid rgba(148, 163, 184, 0.25);
+      background: transparent !important;
+      border-radius: 0;
+      color: #94a3b8;
     }
     .thinking-step {
       display: flex;
@@ -2111,48 +2130,52 @@ button:hover {
       cursor: pointer;
     }
 
-    /* Auto-expanding Input Wrapper */
+    /* Auto-expanding Input Wrapper (Antigravity Floating Card) */
     .input-wrapper {
       position: relative;
       display: flex;
       align-items: flex-end;
       width: 100%;
-      border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.15));
-      border-radius: 8px;
-      background: var(--vscode-input-background, rgba(0, 0, 0, 0.2));
-      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 8px 10px;
       box-sizing: border-box;
       flex-shrink: 0;
-      margin-top: 4px;
+      margin-top: 6px;
       margin-bottom: 2px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .input-wrapper:focus-within {
-      border-color: var(--vscode-focusBorder, #007acc);
-      box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(59, 130, 246, 0.5);
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
       outline: none;
     }
     textarea {
       flex: 1;
-      border: none;
-      outline: none;
+      border: none !important;
+      outline: none !important;
       background: transparent;
-      color: var(--vscode-input-foreground);
+      color: #f1f5f9;
       font-family: inherit;
-      font-size: 12.5px;
+      font-size: 13px;
       resize: none;
       min-height: 28px;
       max-height: 120px;
-      line-height: 1.45;
-      padding: 4px 6px;
+      line-height: 1.5;
+      padding: 2px 6px;
       box-sizing: border-box;
     }
+    textarea::placeholder {
+      color: #64748b;
+    }
     .send-icon-btn {
-      background: var(--vscode-button-background, #007acc);
-      color: var(--vscode-button-foreground, #fff);
-      border: none;
-      border-radius: 6px;
+      background: #2563eb;
+      color: #ffffff;
+      border: none !important;
+      border-radius: 8px;
       width: 28px;
       height: 28px;
       cursor: pointer;
@@ -2162,10 +2185,11 @@ button:hover {
       font-size: 12px;
       margin-left: 6px;
       flex-shrink: 0;
-      transition: background 0.15s ease, opacity 0.15s ease;
+      transition: background 0.15s ease, transform 0.15s ease;
     }
     .send-icon-btn:hover {
-      background: var(--vscode-button-hoverBackground, #005999);
+      background: #1d4ed8;
+      transform: scale(1.04);
     }
   </style>
 </head>
@@ -2352,7 +2376,8 @@ button:hover {
       }
 
       const textDiv = document.createElement('div');
-      textDiv.className = 'bubble-text';
+      const statusClass = text.startsWith('✓') ? ' status-success' : text.startsWith('✕') ? ' status-discard' : '';
+      textDiv.className = 'bubble-text' + statusClass;
       textDiv.innerText = text;
       msgDiv.appendChild(textDiv);
 
