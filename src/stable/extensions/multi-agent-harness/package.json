@@ -31,16 +31,6 @@
           "type": "webview",
           "id": "multi-agent.swarmControlView",
           "name": "Swarm Chat & Control"
-        },
-        {
-          "type": "webview",
-          "id": "multi-agent.artifactsView",
-          "name": "Living Artifacts & Plans"
-        },
-        {
-          "type": "webview",
-          "id": "multi-agent.worktreeView",
-          "name": "Isolated Worktrees"
         }
       ]
     },

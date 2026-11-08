@@ -6,8 +6,6 @@
 import { ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { joinPath } from '../../../../base/common/resources.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -35,27 +33,9 @@ export class AgentMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	private readonly _resources: ValueWithChangeEvent<readonly MultiDiffEditorItem[]>;
 	private readonly _label: ValueWithChangeEvent<string>;
 
-	constructor(
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-	) {
+	constructor() {
 		AgentMultiDiffSourceResolver._instance = this;
-
-		const initialItems: MultiDiffEditorItem[] = [];
-		const workspaceFolders = this._contextService.getWorkspace().folders;
-		if (workspaceFolders.length > 0) {
-			const rootUri = workspaceFolders[0].uri;
-			const stagingDiffUri = joinPath(rootUri, '.local', 'DIFF_STAGING.diff');
-			initialItems.push(
-				new MultiDiffEditorItem(
-					stagingDiffUri,
-					stagingDiffUri,
-					stagingDiffUri,
-					'Continuous Staging Stream'
-				)
-			);
-		}
-
-		this._resources = new ValueWithChangeEvent<readonly MultiDiffEditorItem[]>(initialItems);
+		this._resources = new ValueWithChangeEvent<readonly MultiDiffEditorItem[]>([]);
 		this._label = new ValueWithChangeEvent<string>('Continuous Multi-Diff Staging');
 	}
 

@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from agenthub.adapters import REPORT_SCHEMA, validate_report, Result
 from agenthub.api import Hub
 from agenthub.config import defaults

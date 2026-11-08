@@ -80,7 +80,7 @@ export class WorktreeManager {
       } else if (line.startsWith('branch ')) {
         currentBranch = line.substring(7).trim();
       } else if (line === '') {
-        if (currentPath.includes(path.join('.local', 'worktrees'))) {
+        if (currentPath.includes(this.baseStorageDir) || currentPath.includes(path.join('.local', 'worktrees'))) {
           const taskId = path.basename(currentPath);
           worktrees.push({
             taskId,

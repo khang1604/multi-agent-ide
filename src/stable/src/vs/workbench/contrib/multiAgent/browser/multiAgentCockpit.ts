@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -73,50 +71,11 @@ export class MultiAgentCockpit {
 			return undefined;
 		}
 
-		const workspaceFolders = contextService.getWorkspace().folders;
-		const rootUri = workspaceFolders.length > 0 ? workspaceFolders[0].uri : undefined;
-
-		const filesToOpenOrCreate: IPathToOpen[] = [];
-
-		// Column 1: Living PLAN.md
-		const planUri = rootUri
-			? joinPath(rootUri, 'PLAN.md')
-			: URI.from({ scheme: 'untitled', path: 'PLAN.md' });
-
-		filesToOpenOrCreate.push({
-			viewColumn: 1,
-			fileUri: planUri,
-			openOnlyIfExists: false,
-			options: { pinned: true, preserveFocus: true }
-		});
-
-		// Column 2: Continuous Multi-Diff Staging
-		const diffUri = rootUri
-			? joinPath(rootUri, '.local', 'DIFF_STAGING.diff')
-			: URI.from({ scheme: 'untitled', path: 'DIFF_STAGING.diff' });
-
-		filesToOpenOrCreate.push({
-			viewColumn: 2,
-			fileUri: diffUri,
-			openOnlyIfExists: false,
-			options: { pinned: true, preserveFocus: true }
-		});
-
-		// Column 3: Swarm Activity Stream
-		const swarmUri = rootUri
-			? joinPath(rootUri, '.local', 'SWARM_ACTIVITY.md')
-			: URI.from({ scheme: 'untitled', path: 'SWARM_ACTIVITY.md' });
-
-		filesToOpenOrCreate.push({
-			viewColumn: 3,
-			fileUri: swarmUri,
-			openOnlyIfExists: false,
-			options: { pinned: true, preserveFocus: true }
-		});
-
+		// Return the 3-column cockpit layout without hardcoding workspace files.
+		// Centralized brain files (~/.multi-agent-ide/brain/<slug>/) are populated
+		// by the multi-agent-harness extension once initialized.
 		return {
-			layout: this.getCockpitLayout(),
-			filesToOpenOrCreate
+			layout: this.getCockpitLayout()
 		};
 	}
 }
