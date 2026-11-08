@@ -21,3 +21,6 @@ font-size/node_modules/
 font-size/generate-css.js
 graphify-out/
 .local/
+__pycache__/
+*.pyc
+

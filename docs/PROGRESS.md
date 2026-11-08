@@ -40,9 +40,19 @@
    - Injected contribution import into `vscode/src/vs/workbench/workbench.common.main.ts` and generated upstream patch `patches/91-multi-agent-tier2-multidiff.patch`.
    - Updated `multi-agent-harness` extension command `multiAgent.setupCockpitLayout` to trigger the native multi-diff editor in Column 2.
    - Client TS compilation passed with 0 errors; output verified in `vscode/out/`.
+8. **Tier 3 Implemented: IPC Daemon Bridge & Reactive Swarm HUD:**
+   - Created `harness/agenthub -> engine` package symlink enabling standard CLI and daemon executions.
+   - Authored `DaemonBridge.ts` in `src/stable/extensions/multi-agent-harness/src/daemon/` to manage Python Hub daemon lifecycle (`start`, `stop`, `status`, `doctor`, `dispatch`, `cancel`) and continuous background state sync (3s cadence).
+   - Upgraded `SwarmControlProvider.ts` in Secondary Sidebar with a complete interactive HUD:
+     - Real-time daemon toggle pill (`🟢 DAEMON: ACTIVE` / `⚪ DAEMON: STOPPED`).
+     - Active workflow card showing objective, phase, call counter, and cancel button.
+     - Live agent swimlanes dynamically transitioning states (`IDLE`, `PLANNING`, `EXECUTING`, `REVIEWING`) based on daemon workflow ticks.
+     - Task dispatch input with immediate feedback.
+   - Added Status Bar HUD indicator item: `$(hub-pulse) Swarm: Active (N tasks)` / `$(circle-slash) Swarm: Stopped`.
+   - Registered workbench commands: `multiAgent.startDaemon`, `multiAgent.stopDaemon`, `multiAgent.showDoctor`.
+   - Extension compiled with 0 errors (`tsc -p ./`).
 
 ## Prioritized Next Steps
-1. **Tier 3 (IPC Daemon & Swarm HUD WebSocket):** Wire `harness/engine/api.py` via Unix Domain Socket (`.local/swarm.sock`) to feed real-time agent swimlanes and streaming logs into `SwarmControlProvider.ts`.
-2. **Tier 4 (Auditor Diagnostics & Safety Gate):** Hook `Gemini Auditor` into `vscode.DiagnosticCollection` for in-editor red squiggles and deploy human confirmation gate for terminal mutations.
-3. **Desktop Entry:** Generate `~/.local/share/applications/multi-agent-ide.desktop` for system application menu launcher.
+1. **Tier 4 (Auditor Diagnostics Collection & Safety Gate):** Wire Gemini Auditor test results into `vscode.languages.createDiagnosticCollection` for in-editor red squiggles and deploy human confirmation gate for terminal mutations.
+2. **Desktop Launcher Entry:** Generate `~/.local/share/applications/multi-agent-ide.desktop` and standalone system launcher.
 

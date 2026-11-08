@@ -69,6 +69,21 @@
         "command": "multiAgent.setupCockpitLayout",
         "title": "Multi Agent: Reset Cockpit 3-Column Layout",
         "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.startDaemon",
+        "title": "Multi Agent: Start Python Hub Daemon",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.stopDaemon",
+        "title": "Multi Agent: Stop Python Hub Daemon",
+        "category": "Multi Agent"
+      },
+      {
+        "command": "multiAgent.showDoctor",
+        "title": "Multi Agent: Run Environment Doctor",
+        "category": "Multi Agent"
       }
     ],
     "configuration": {

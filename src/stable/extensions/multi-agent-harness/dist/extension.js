@@ -9,24 +9,93 @@ const WorktreeManager_1 = require("./worktree/WorktreeManager");
 const ArtifactManager_1 = require("./artifacts/ArtifactManager");
 const DiffProvider_1 = require("./diff/DiffProvider");
 const SwarmControlProvider_1 = require("./views/SwarmControlProvider");
+const DaemonBridge_1 = require("./daemon/DaemonBridge");
 function activate(context) {
     const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
     const worktreeMgr = new WorktreeManager_1.WorktreeManager(rootPath);
     const artifactMgr = new ArtifactManager_1.ArtifactManager(rootPath);
     const diffProvider = DiffProvider_1.AgentDiffProvider.getInstance();
+    const daemonBridge = DaemonBridge_1.DaemonBridge.getInstance(rootPath);
+    // Initialize Daemon Bridge & start background status sync
+    daemonBridge.init().then(() => {
+        daemonBridge.startSync(3000);
+    }).catch((err) => {
+        console.warn('[multi-agent-harness] DaemonBridge init error:', err);
+    });
     // 1. Register diff content provider
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DiffProvider_1.AgentDiffProvider.scheme, diffProvider));
-    // 2. Register Webview Views
-    const swarmProvider = new SwarmControlProvider_1.SwarmControlProvider(context.extensionUri, worktreeMgr, artifactMgr);
+    // 2. Register Webview Views with Daemon Bridge
+    const swarmProvider = new SwarmControlProvider_1.SwarmControlProvider(context.extensionUri, worktreeMgr, artifactMgr, daemonBridge);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider(SwarmControlProvider_1.SwarmControlProvider.viewType, swarmProvider));
-    // 3. Register Commands
+    // 3. Register Status Bar HUD
+    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'workbench.view.extension.multi-agent-swarm';
+    statusBarItem.tooltip = 'Click to open Multi-Agent Swarm Control Center';
+    const updateStatusBar = (daemon, workflowCount = 0) => {
+        if (daemon === 'running') {
+            statusBarItem.text = `$(hub-pulse) Swarm: Active${workflowCount > 0 ? ` (${workflowCount} tasks)` : ''}`;
+            statusBarItem.color = '#73c991';
+        }
+        else {
+            statusBarItem.text = `$(circle-slash) Swarm: Stopped`;
+            statusBarItem.color = undefined;
+        }
+        statusBarItem.show();
+    };
+    daemonBridge.onDidStatusChange((status) => {
+        const activeCount = status.workflows.filter((w) => ['queued', 'running', 'waiting', 'recovering'].includes(w.status)).length;
+        updateStatusBar(status.daemon, activeCount);
+    });
+    daemonBridge.getStatus().then((s) => updateStatusBar(s.daemon)).catch(() => { });
+    context.subscriptions.push(statusBarItem);
+    // 4. Register Commands
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.startDaemon', async () => {
+        try {
+            const res = await daemonBridge.startDaemon();
+            vscode.window.showInformationMessage(`Multi-Agent Daemon started (PID: ${res.pid || 'running'})`);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Start daemon error: ${msg}`);
+        }
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.stopDaemon', async () => {
+        try {
+            await daemonBridge.stopDaemon();
+            vscode.window.showInformationMessage('Multi-Agent Daemon stop requested.');
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Stop daemon error: ${msg}`);
+        }
+    }));
+    context.subscriptions.push(vscode.commands.registerCommand('multiAgent.showDoctor', async () => {
+        try {
+            const doc = await daemonBridge.getDoctor();
+            const providers = Object.entries(doc.providers)
+                .map(([name, p]) => `${name}: ${p.available ? 'OK' : 'Unavailable (' + p.reason + ')'}`)
+                .join('\n');
+            vscode.window.showInformationMessage(`Multi-Agent Doctor:\nPython: ${doc.python} | Daemon: ${doc.daemon}\n${providers}`);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            vscode.window.showErrorMessage(`Doctor error: ${msg}`);
+        }
+    }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.newSession', async () => {
         const input = await vscode.window.showInputBox({
             prompt: 'Describe the engineering task for the Multi Agent Swarm',
             placeHolder: 'e.g. Implement rate limiting middleware and unit tests',
         });
         if (input) {
-            vscode.window.showInformationMessage(`Task dispatched: ${input}`);
+            try {
+                const res = await daemonBridge.dispatch(input);
+                vscode.window.showInformationMessage(`Task dispatched to Swarm (Workflow: ${res.id})`);
+            }
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                vscode.window.showErrorMessage(`Dispatch error: ${msg}`);
+            }
         }
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.approvePlan', async () => {
@@ -45,7 +114,6 @@ function activate(context) {
         const list = await worktreeMgr.listWorktrees();
         vscode.window.showInformationMessage(`Active Worktrees: ${list.length}`);
     }));
-    // 4. Architecture Map & Cockpit Navigation
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.openArchitectureMap', async () => {
         const mapUri = vscode.Uri.file(path.join(rootPath, 'docs', 'architecture', 'VISUAL_FLOW_MAP.md'));
         try {
@@ -105,5 +173,8 @@ function activate(context) {
     }));
     console.log('Multi Agent IDE Harness Core Extension activated.');
 }
-function deactivate() { }
+function deactivate() {
+    const daemonBridge = DaemonBridge_1.DaemonBridge.getInstance();
+    daemonBridge.stopSync();
+}
 //# sourceMappingURL=extension.js.map
