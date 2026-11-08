@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { StorageLayout } from '../storage/StorageLayout';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,7 +17,7 @@ export class WorktreeManager {
   private baseStorageDir: string;
 
   constructor(private projectRoot: string) {
-    this.baseStorageDir = path.join(projectRoot, '.local', 'worktrees');
+    this.baseStorageDir = StorageLayout.getWorktreesDir(projectRoot);
   }
 
   private async runGit(args: string[], cwd = this.projectRoot): Promise<{ stdout: string; stderr: string }> {

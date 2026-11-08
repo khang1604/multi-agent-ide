@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as vscode from 'vscode';
+import { StorageLayout } from '../storage/StorageLayout';
 
 export interface ArtifactMetadata {
   title: string;
@@ -23,7 +24,7 @@ export class ArtifactManager {
   public readonly onArtifactsChanged = this._onArtifactsChanged.event;
 
   constructor(projectRoot: string) {
-    this.artifactsDir = path.join(projectRoot, '.local', 'artifacts');
+    this.artifactsDir = StorageLayout.getArtifactsDir(projectRoot);
   }
 
   public async init(): Promise<void> {

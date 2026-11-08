@@ -4,12 +4,13 @@ exports.ArtifactManager = void 0;
 const path = require("path");
 const fs = require("fs/promises");
 const vscode = require("vscode");
+const StorageLayout_1 = require("../storage/StorageLayout");
 class ArtifactManager {
     artifactsDir;
     _onArtifactsChanged = new vscode.EventEmitter();
     onArtifactsChanged = this._onArtifactsChanged.event;
     constructor(projectRoot) {
-        this.artifactsDir = path.join(projectRoot, '.local', 'artifacts');
+        this.artifactsDir = StorageLayout_1.StorageLayout.getArtifactsDir(projectRoot);
     }
     async init() {
         await fs.mkdir(this.artifactsDir, { recursive: true });

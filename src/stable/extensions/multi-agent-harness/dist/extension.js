@@ -11,6 +11,7 @@ const DiffProvider_1 = require("./diff/DiffProvider");
 const SwarmControlProvider_1 = require("./views/SwarmControlProvider");
 const DaemonBridge_1 = require("./daemon/DaemonBridge");
 const AuditorDiagnostics_1 = require("./auditor/AuditorDiagnostics");
+const StorageLayout_1 = require("./storage/StorageLayout");
 function activate(context) {
     const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
     const worktreeMgr = new WorktreeManager_1.WorktreeManager(rootPath);
@@ -153,11 +154,12 @@ function activate(context) {
             orientation: 0,
             groups: [{ size: 0.28 }, { size: 0.44 }, { size: 0.28 }],
         });
-        const planPath = path.join(rootPath, 'PLAN.md');
-        const diffPath = path.join(rootPath, '.local', 'DIFF_STAGING.diff');
-        const activityPath = path.join(rootPath, '.local', 'SWARM_ACTIVITY.md');
+        const planPath = StorageLayout_1.StorageLayout.getPlanFile(rootPath);
+        const diffPath = StorageLayout_1.StorageLayout.getDiffStagingFile(rootPath);
+        const activityPath = StorageLayout_1.StorageLayout.getActivityStreamFile(rootPath);
         try {
-            await fs.mkdir(path.join(rootPath, '.local'), { recursive: true });
+            await StorageLayout_1.StorageLayout.ensureDirectories(rootPath);
+            await fs.mkdir(path.dirname(diffPath), { recursive: true });
             try {
                 await fs.access(planPath);
             }

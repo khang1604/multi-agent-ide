@@ -7,6 +7,7 @@ import { AgentDiffProvider } from './diff/DiffProvider';
 import { SwarmControlProvider } from './views/SwarmControlProvider';
 import { DaemonBridge } from './daemon/DaemonBridge';
 import { AuditorDiagnosticsManager } from './auditor/AuditorDiagnostics';
+import { StorageLayout } from './storage/StorageLayout';
 
 export function activate(context: vscode.ExtensionContext) {
   const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
@@ -190,12 +191,13 @@ export function activate(context: vscode.ExtensionContext) {
         groups: [{ size: 0.28 }, { size: 0.44 }, { size: 0.28 }],
       });
 
-      const planPath = path.join(rootPath, 'PLAN.md');
-      const diffPath = path.join(rootPath, '.local', 'DIFF_STAGING.diff');
-      const activityPath = path.join(rootPath, '.local', 'SWARM_ACTIVITY.md');
+      const planPath = StorageLayout.getPlanFile(rootPath);
+      const diffPath = StorageLayout.getDiffStagingFile(rootPath);
+      const activityPath = StorageLayout.getActivityStreamFile(rootPath);
 
       try {
-        await fs.mkdir(path.join(rootPath, '.local'), { recursive: true });
+        await StorageLayout.ensureDirectories(rootPath);
+        await fs.mkdir(path.dirname(diffPath), { recursive: true });
         try { await fs.access(planPath); } catch {
           await fs.writeFile(planPath, '# Living PLAN.md\n\n> Multi-Agent Execution Plan\n\n## 1. Objectives\n- [ ] Task 1: Inception\n', 'utf-8');
         }

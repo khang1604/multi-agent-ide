@@ -5,13 +5,14 @@ const path = require("path");
 const fs = require("fs/promises");
 const child_process_1 = require("child_process");
 const util_1 = require("util");
+const StorageLayout_1 = require("../storage/StorageLayout");
 const execFileAsync = (0, util_1.promisify)(child_process_1.execFile);
 class WorktreeManager {
     projectRoot;
     baseStorageDir;
     constructor(projectRoot) {
         this.projectRoot = projectRoot;
-        this.baseStorageDir = path.join(projectRoot, '.local', 'worktrees');
+        this.baseStorageDir = StorageLayout_1.StorageLayout.getWorktreesDir(projectRoot);
     }
     async runGit(args, cwd = this.projectRoot) {
         try {
