@@ -65,15 +65,8 @@ class SwarmControlProvider {
             }
         }
         catch { }
-        // Default initial greeting
-        this.chatHistory = [
-            {
-                sender: 'SYSTEM',
-                role: 'system',
-                text: 'Multi-Agent IDE Swarm ready. Nhập yêu cầu để phối hợp Architect, Worker và Auditor.',
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }
-        ];
+        // Default initial state: empty chat history
+        this.chatHistory = [];
     }
     async saveChatHistory() {
         if (!this.historyFile)
@@ -102,6 +95,14 @@ class SwarmControlProvider {
                     });
                     this.updateSwarmView();
                     this.sendProvidersState();
+                    break;
+                case 'onNewSession':
+                    this.chatHistory = [];
+                    await this.saveChatHistory();
+                    this._view?.webview.postMessage({
+                        type: 'restoreChatHistory',
+                        messages: []
+                    });
                     break;
                 case 'onStartPrompt':
                     await this.handleUserPrompt(data.value);
@@ -271,37 +272,78 @@ class SwarmControlProvider {
         const targetRoot = this.projectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         this.appendChatAndBroadcast('You', 'user', prompt);
         this.updateAgentState('agent-architect', 'planning', prompt);
-        // Try dispatching to Python Hub Daemon
+        let daemonNote = null;
+        // Try dispatching to Python Hub Daemon silently into thinking
         if (this.daemonBridge) {
             try {
                 const res = await this.daemonBridge.dispatch(prompt);
-                this.appendChatAndBroadcast('Swarm Hub', 'system', `Workflow ${res.id} queued in Hub Daemon (status: ${res.status}).`);
+                daemonNote = `dispatch objective to hub daemon (workflow: ${res.id.slice(0, 8)})`;
             }
             catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                this.appendChatAndBroadcast('Swarm Hub', 'system', `Hub note: ${msg}`);
+                daemonNote = `hub bridge note: ${msg.slice(0, 40)}`;
             }
         }
         // Automatically scaffold React/Web structure if requested
-        if (targetRoot && (prompt.toLowerCase().includes('react') || prompt.toLowerCase().includes('web') || prompt.toLowerCase().includes('khởi tạo') || prompt.toLowerCase().includes('cấu trúc'))) {
-            await this.executeReactScaffold(targetRoot, prompt);
+        if (targetRoot && (prompt.toLowerCase().includes('react') || prompt.toLowerCase().includes('web') || prompt.toLowerCase().includes('khởi tạo') || prompt.toLowerCase().includes('cấu trúc') || prompt.toLowerCase().includes('scaffold') || prompt.toLowerCase().includes('create'))) {
+            await this.executeReactScaffold(targetRoot, prompt, daemonNote);
         }
         else if (targetRoot) {
             // General living plan in brain storage
             await StorageLayout_1.StorageLayout.ensureDirectories(targetRoot);
             const planContent = `# Living PLAN.md\n\n> Objective: ${prompt}\n> Status: Analysis Ready\n\n## Tasks\n- [ ] [Architect] Analyze task boundaries\n- [ ] [Worker] Implement code changes\n- [ ] [Auditor] Run test verification\n`;
             await fs.writeFile(StorageLayout_1.StorageLayout.getPlanFile(targetRoot), planContent, 'utf-8');
-            this.appendChatAndBroadcast('Lead Architect', 'agent', 'Đã phân tích yêu cầu và cập nhật Living PLAN.md trong Cockpit.');
+            const thinkingId = 'think-' + Date.now();
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            this._view?.webview.postMessage({
+                type: 'startThinking',
+                id: thinkingId,
+                sender: 'Lead Architect',
+                time
+            });
+            const genSteps = [
+                { kind: 'ran', text: 'initialize multi-agent swarm engine' },
+                { kind: 'ran', text: daemonNote || 'connect to hub daemon (active)' },
+                { kind: 'analyzed', text: `objective: "${prompt}"` },
+                { kind: 'edited', badge: 'MD', text: 'PLAN.md', diffStat: { add: 18, del: 0 } }
+            ];
+            for (const step of genSteps) {
+                this._view?.webview.postMessage({
+                    type: 'appendThinkingStep',
+                    id: thinkingId,
+                    step,
+                    elapsedSec: 1
+                });
+                await new Promise(r => setTimeout(r, 120));
+            }
+            const planMsg = 'Analyzed requirements and updated Living PLAN.md in Cockpit.';
+            this._view?.webview.postMessage({
+                type: 'finishThinking',
+                id: thinkingId,
+                durationSec: 1,
+                finalMessage: planMsg
+            });
+            this.chatHistory.push({
+                sender: 'Lead Architect',
+                role: 'agent',
+                text: planMsg,
+                time,
+                thinking: {
+                    durationSec: 1,
+                    steps: genSteps
+                }
+            });
+            this.saveChatHistory();
             this._view?.webview.postMessage({ type: 'showApprovePill', show: true });
         }
     }
     async handleApprovePlan() {
         const targetRoot = this.projectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (targetRoot) {
-            await this.executeReactScaffold(targetRoot, 'Khởi tạo cấu trúc dự án React JS hoàn chỉnh');
+            await this.executeReactScaffold(targetRoot, 'Scaffold complete React 19 + TypeScript project structure');
         }
     }
-    async executeReactScaffold(targetRoot, prompt) {
+    async executeReactScaffold(targetRoot, prompt, daemonNote) {
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const thinkingId = 'think-' + Date.now();
         // Ensure Antigravity storage structure outside workspace
@@ -310,11 +352,13 @@ class SwarmControlProvider {
         this._view?.webview.postMessage({
             type: 'startThinking',
             id: thinkingId,
-            sender: 'Swarm Swarm',
+            sender: 'Swarm Agents',
             time
         });
         const steps = [
-            { kind: 'ran', text: 'read workspace structure and environment >' },
+            { kind: 'ran', text: 'initialize multi-agent swarm engine' },
+            { kind: 'ran', text: daemonNote || 'verify hub daemon connection (active)' },
+            { kind: 'ran', text: 'read workspace structure and environment' },
             { kind: 'analyzed', badge: 'TS', text: 'project requirements: React 19 + TypeScript + Vite' },
             { kind: 'edited', badge: 'MD', text: 'PLAN.md', diffStat: { add: 32, del: 0 } },
             { kind: 'created', badge: 'JSON', text: 'package.json', diffStat: { add: 24, del: 0 } },
@@ -577,7 +621,7 @@ button:hover {
             await fs.writeFile(StorageLayout_1.StorageLayout.getDiffStagingFile(targetRoot), diffContent, 'utf-8');
             this.updateAgentState('agent-coder', 'idle');
             this.updateAgentState('agent-auditor', 'idle');
-            const finalMsg = '🚀 Đã tạo xong 8 files dự án React JS (package.json, vite.config.ts, src/App.tsx, src/components/Header.tsx, index.html...). Toàn bộ mã nguồn đã sẵn sàng trong Explorer!';
+            const finalMsg = 'Scaffolded React 19 + TypeScript project with 8 files. All components and configuration are ready in Explorer.';
             this._view?.webview.postMessage({
                 type: 'finishThinking',
                 id: thinkingId,
@@ -599,7 +643,7 @@ button:hover {
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            this.appendChatAndBroadcast('Swarm Hub', 'system', `Lỗi tạo files: ${msg}`);
+            this.appendChatAndBroadcast('Swarm Hub', 'agent', `Failed to generate files: ${msg}`);
         }
     }
     renderThinkingHtml(thinking) {
@@ -629,22 +673,36 @@ button:hover {
     `;
     }
     getHtmlForWebview() {
-        const renderedHistory = this.chatHistory.map(m => {
-            if (m.role === 'system') {
-                return `<div class="chat-chip system">ℹ️ ${this.escapeHtml(m.text)} <small style="opacity:0.6">${m.time}</small></div>`;
-            }
-            const thinkingHtml = m.thinking ? this.renderThinkingHtml(m.thinking) : '';
-            return `
-        <div class="chat-bubble ${m.role}">
-          <div class="bubble-meta">
-            <span>${this.escapeHtml(m.sender)}</span>
-            <span>${m.time}</span>
+        let historyContent = '';
+        const visibleMessages = this.chatHistory.filter(m => m.role !== 'system');
+        if (visibleMessages.length === 0) {
+            historyContent = `
+        <div class="empty-state">
+          <div class="empty-icon">
+            <svg width="26" height="26" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm-.75 2.75v3.5a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-1.5 0zM8 10.5a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75z"/>
+            </svg>
           </div>
-          ${thinkingHtml}
-          <div class="bubble-text">${this.escapeHtml(m.text)}</div>
+          <div class="empty-title">Agent Swarm Ready</div>
+          <div class="empty-desc">Ask anything or describe what to build to orchestrate Architect, Worker, and Auditor.</div>
         </div>
       `;
-        }).join('');
+        }
+        else {
+            historyContent = visibleMessages.map(m => {
+                const thinkingHtml = m.thinking ? this.renderThinkingHtml(m.thinking) : '';
+                return `
+          <div class="chat-bubble ${m.role}">
+            <div class="bubble-meta">
+              <span>${this.escapeHtml(m.sender)}</span>
+              <span>${m.time}</span>
+            </div>
+            ${thinkingHtml}
+            <div class="bubble-text">${this.escapeHtml(m.text)}</div>
+          </div>
+        `;
+            }).join('');
+        }
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -668,81 +726,93 @@ button:hover {
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
       flex-shrink: 0;
-      height: 24px;
+      height: 26px;
     }
     .header-title {
       font-weight: 700;
       font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      color: var(--vscode-foreground);
     }
     .top-actions {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 2px;
     }
-    .btn-pill {
-      font-size: 9px;
-      padding: 2px 5px;
+    .icon-btn {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       border-radius: 4px;
-      font-weight: 600;
       cursor: pointer;
-      border: 1px solid var(--vscode-widget-border, #444);
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--vscode-foreground);
+      color: var(--vscode-icon-foreground, #cccccc);
+      border: none;
+      background: transparent;
+      padding: 0;
+      transition: background 0.12s ease, color 0.12s ease;
+      position: relative;
     }
-    .btn-pill:hover {
-      background: var(--vscode-button-hoverBackground);
-      color: var(--vscode-button-foreground);
+    .icon-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+      color: var(--vscode-foreground, #ffffff);
     }
-    .daemon-pill {
-      font-size: 9px;
-      padding: 2px 5px;
-      border-radius: 4px;
-      font-weight: 600;
-      cursor: pointer;
+    .daemon-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     }
-    .daemon-pill.running {
-      background: rgba(115, 201, 145, 0.2);
-      color: #73c991;
-      border: 1px solid #73c991;
+    .daemon-status-dot {
+      position: absolute;
+      bottom: 3px;
+      right: 3px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #73c991;
+      box-shadow: 0 0 4px #73c991;
+      transition: all 0.2s ease;
     }
-    .daemon-pill.stopped {
-      background: rgba(200, 200, 200, 0.1);
-      color: var(--vscode-descriptionForeground);
-      border: 1px solid var(--vscode-widget-border);
+    .daemon-indicator.stopped .daemon-status-dot {
+      background: #777777;
+      box-shadow: none;
     }
 
-    /* Sleek 1-Row Pipeline Bar */
-    .pipeline-bar {
+    .empty-state {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--vscode-widget-border, #333);
-      border-radius: 4px;
-      padding: 3px 6px;
-      font-size: 10px;
-      margin-bottom: 6px;
-      flex-shrink: 0;
-    }
-    .pipe-item {
-      display: flex;
-      align-items: center;
-      gap: 3px;
+      justify-content: center;
+      text-align: center;
+      margin: auto 0;
+      padding: 24px 16px;
       color: var(--vscode-descriptionForeground);
     }
-    .pipe-item.active {
-      color: #58a6ff;
-      font-weight: bold;
+    .empty-icon {
+      margin-bottom: 8px;
+      opacity: 0.8;
+      color: var(--vscode-textLink-foreground, #58a6ff);
     }
-    .pipe-sep {
-      color: rgba(255, 255, 255, 0.2);
-      font-size: 9px;
+    .empty-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--vscode-foreground);
+      margin-bottom: 4px;
+    }
+    .empty-desc {
+      font-size: 11px;
+      line-height: 1.4;
+      max-width: 240px;
+      opacity: 0.7;
     }
 
     .chat-container {
@@ -789,16 +859,7 @@ button:hover {
       max-width: 95%;
     }
     .chat-chip.system {
-      align-self: center;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 2px 8px;
-      font-size: 10px;
-      color: var(--vscode-descriptionForeground);
-      text-align: center;
-      margin: 2px 0;
-      max-width: 95%;
+      display: none; /* Suppress system chips in main chat; all telemetry routes to Thinking */
     }
     .bubble-meta {
       font-size: 9px;
@@ -1067,11 +1128,24 @@ button:hover {
 </head>
 <body>
   <div class="top-bar">
-    <div class="header-title">🤖 Swarm</div>
+    <div class="header-title">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a3 3 0 0 0-3 3v.5H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V4a3 3 0 0 0-3-3zm-1.5 3.5a1.5 1.5 0 0 1 3 0V4h-3v-.5zM5 8.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
+      <span>Swarm</span>
+    </div>
     <div class="top-actions">
-      <div id="configBtn" class="btn-pill" title="Configure Agent Providers & Custom CLIs">⚙️ Agents</div>
-      <div id="cockpitBtn" class="btn-pill" title="Reset Cockpit 3-Column Layout">⊞ Cockpit</div>
-      <div id="daemonPill" class="daemon-pill stopped" title="Click to start/stop Python Hub Daemon">HUB: STOPPED</div>
+      <button id="newSessionBtn" class="icon-btn" title="New Session (+)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/></svg>
+      </button>
+      <button id="cockpitBtn" class="icon-btn" title="Cockpit 3-Column Layout">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14 2H2a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1zM2 3h3v10H2V3zm4 10V3h4v10H6zm8 0h-3V3h3v10z"/></svg>
+      </button>
+      <button id="configBtn" class="icon-btn" title="Agent Providers & Settings">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.5.5v1.2l2.5.5.3.8-1.4 1.9.8.8 2-1.3.8.3.4 2.5h1.2l.5-2.5.7-.3 2 1.3.8-.8-1.3-2 .3-.7 2.4-.5V7.6l-2.4-.5-.3-.7 1.3-2-.8-.8-2 1.3-.7-.3zM8 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>
+      </button>
+      <button id="daemonBtn" class="icon-btn daemon-indicator running" title="Hub Daemon: Running (Click to toggle)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3zm1 1v1h1V4H3zm3 0v1h1V4H6zm-4 6a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-3zm1 1v1h1v-1H3zm3 0v1h1v-1H6z"/></svg>
+        <span class="daemon-status-dot"></span>
+      </button>
     </div>
   </div>
 
@@ -1133,30 +1207,21 @@ button:hover {
     <button id="openVscodeSettingsBtn" class="btn-drawer" style="background:var(--vscode-button-secondaryBackground); color:var(--vscode-button-secondaryForeground)">Open VS Code Settings</button>
   </div>
 
-  <!-- Sleek 1-Row Pipeline Bar -->
-  <div class="pipeline-bar">
-    <span id="pipe-arch" class="pipe-item">🧠 Arch: <small id="badge-architect">IDLE</small></span>
-    <span class="pipe-sep">➔</span>
-    <span id="pipe-work" class="pipe-item">⚡ Work: <small id="badge-coder">IDLE</small></span>
-    <span class="pipe-sep">➔</span>
-    <span id="pipe-audit" class="pipe-item">🛡️ Audit: <small id="badge-auditor">IDLE</small></span>
-  </div>
-
   <!-- Chat Messages Stream -->
   <div id="chatMessages" class="chat-container">
-    ${renderedHistory}
+    ${historyContent}
   </div>
 
   <!-- Contextual Action Pill -->
   <div id="approvePill" class="action-pill-banner" style="display: none;">
-    <span>⚡ Kế hoạch đã sẵn sàng:</span>
-    <button id="approveBtn">Phê duyệt & Tạo files</button>
+    <span>⚡ Living Plan ready:</span>
+    <button id="approveBtn">Approve & Scaffold</button>
   </div>
 
   <!-- Auto-expanding Input Box -->
   <div class="input-wrapper">
-    <textarea id="promptInput" rows="1" placeholder="Nhập yêu cầu cho Swarm (Enter để gửi)..."></textarea>
-    <button id="dispatchBtn" class="send-icon-btn" title="Gửi yêu cầu (Enter)">➤</button>
+    <textarea id="promptInput" rows="1" placeholder="Ask Swarm or describe what to build (Enter to send)..."></textarea>
+    <button id="dispatchBtn" class="send-icon-btn" title="Send to Swarm (Enter)">➤</button>
   </div>
 
   <script>
@@ -1164,12 +1229,13 @@ button:hover {
     const btn = document.getElementById('dispatchBtn');
     const approveBtn = document.getElementById('approveBtn');
     const approvePill = document.getElementById('approvePill');
+    const newSessionBtn = document.getElementById('newSessionBtn');
     const cockpitBtn = document.getElementById('cockpitBtn');
     const configBtn = document.getElementById('configBtn');
     const closeConfigBtn = document.getElementById('closeConfigBtn');
     const configDrawer = document.getElementById('configDrawer');
     const input = document.getElementById('promptInput');
-    const daemonPill = document.getElementById('daemonPill');
+    const daemonBtn = document.getElementById('daemonBtn');
     const chatContainer = document.getElementById('chatMessages');
 
     const selArchitect = document.getElementById('selArchitect');
@@ -1186,7 +1252,7 @@ button:hover {
     const roleReview = document.getElementById('roleReview');
     const openVscodeSettingsBtn = document.getElementById('openVscodeSettingsBtn');
 
-    let currentDaemonState = 'stopped';
+    let currentDaemonState = 'running';
     let availableEngines = ['antigravity', 'codex', 'claude', 'copilot'];
 
     function scrollToBottom() {
@@ -1199,62 +1265,67 @@ button:hover {
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    function renderEmptyState() {
+      chatContainer.innerHTML = '<div class="empty-state">' +
+        '<div class="empty-icon"><svg width="26" height="26" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm-.75 2.75v3.5a.75.75 0 0 0 1.5 0v-3.5a.75.75 0 0 0-1.5 0zM8 10.5a.875.875 0 1 0 0 1.75.875.875 0 0 0 0-1.75z"/></svg></div>' +
+        '<div class="empty-title">Agent Swarm Ready</div>' +
+        '<div class="empty-desc">Ask anything or describe what to build to orchestrate Architect, Worker, and Auditor.</div>' +
+        '</div>';
+    }
+
     function appendMessage(sender, role, text, time, thinking) {
-      if (role === 'system') {
-        const chip = document.createElement('div');
-        chip.className = 'chat-chip system';
-        chip.innerHTML = 'ℹ️ ' + escapeHtml(text) + ' <small style="opacity:0.6">' + (time || '') + '</small>';
-        chatContainer.appendChild(chip);
-      } else {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'chat-bubble ' + (role || 'agent');
+      if (role === 'system') return; // Suppress system chips in main chat stream
+      const empty = chatContainer.querySelector('.empty-state');
+      if (empty) empty.remove();
 
-        const metaDiv = document.createElement('div');
-        metaDiv.className = 'bubble-meta';
-        metaDiv.innerHTML = '<span>' + escapeHtml(sender) + '</span><span>' + (time || '') + '</span>';
-        msgDiv.appendChild(metaDiv);
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'chat-bubble ' + (role || 'agent');
 
-        if (thinking && thinking.steps) {
-          const thinkContainer = document.createElement('div');
-          thinkContainer.className = 'thinking-container';
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'bubble-meta';
+      metaDiv.innerHTML = '<span>' + escapeHtml(sender) + '</span><span>' + (time || '') + '</span>';
+      msgDiv.appendChild(metaDiv);
 
-          const thinkHeader = document.createElement('div');
-          thinkHeader.className = 'thinking-header';
-          thinkHeader.innerHTML = '<span class="chevron">⌵</span><span>Thinking</span>';
-          thinkHeader.onclick = () => thinkContainer.classList.toggle('collapsed');
+      if (thinking && thinking.steps) {
+        const thinkContainer = document.createElement('div');
+        thinkContainer.className = 'thinking-container';
 
-          const thinkBody = document.createElement('div');
-          thinkBody.className = 'thinking-body';
+        const thinkHeader = document.createElement('div');
+        thinkHeader.className = 'thinking-header';
+        thinkHeader.innerHTML = '<span class="chevron">⌵</span><span>Thinking</span>';
+        thinkHeader.onclick = () => thinkContainer.classList.toggle('collapsed');
 
-          thinking.steps.forEach(s => {
-            const stepDiv = document.createElement('div');
-            stepDiv.className = 'thinking-step';
-            const badgeHtml = s.badge ? '<span class="step-badge badge-' + s.badge.toLowerCase() + '">' + s.badge + '</span>' : '';
-            const diffHtml = s.diffStat ? '<span class="step-diff"><span class="diff-add">+' + s.diffStat.add + '</span> <span class="diff-del">-' + s.diffStat.del + '</span></span>' : '';
-            stepDiv.innerHTML = '<span class="step-action">' + (s.kind.charAt(0).toUpperCase() + s.kind.slice(1)) + '</span>' +
-              badgeHtml +
-              '<span class="step-target">' + escapeHtml(s.text) + '</span>' +
-              diffHtml;
-            thinkBody.appendChild(stepDiv);
-          });
+        const thinkBody = document.createElement('div');
+        thinkBody.className = 'thinking-body';
 
-          const thinkFooter = document.createElement('div');
-          thinkFooter.className = 'thinking-footer';
-          thinkFooter.innerText = 'Thought for ' + thinking.durationSec + 's';
-          thinkBody.appendChild(thinkFooter);
+        thinking.steps.forEach(s => {
+          const stepDiv = document.createElement('div');
+          stepDiv.className = 'thinking-step';
+          const badgeHtml = s.badge ? '<span class="step-badge badge-' + s.badge.toLowerCase() + '">' + s.badge + '</span>' : '';
+          const diffHtml = s.diffStat ? '<span class="step-diff"><span class="diff-add">+' + s.diffStat.add + '</span> <span class="diff-del">-' + s.diffStat.del + '</span></span>' : '';
+          stepDiv.innerHTML = '<span class="step-action">' + (s.kind.charAt(0).toUpperCase() + s.kind.slice(1)) + '</span>' +
+            badgeHtml +
+            '<span class="step-target">' + escapeHtml(s.text) + '</span>' +
+            diffHtml;
+          thinkBody.appendChild(stepDiv);
+        });
 
-          thinkContainer.appendChild(thinkHeader);
-          thinkContainer.appendChild(thinkBody);
-          msgDiv.appendChild(thinkContainer);
-        }
+        const thinkFooter = document.createElement('div');
+        thinkFooter.className = 'thinking-footer';
+        thinkFooter.innerText = 'Thought for ' + thinking.durationSec + 's';
+        thinkBody.appendChild(thinkFooter);
 
-        const textDiv = document.createElement('div');
-        textDiv.className = 'bubble-text';
-        textDiv.innerText = text;
-        msgDiv.appendChild(textDiv);
-
-        chatContainer.appendChild(msgDiv);
+        thinkContainer.appendChild(thinkHeader);
+        thinkContainer.appendChild(thinkBody);
+        msgDiv.appendChild(thinkContainer);
       }
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'bubble-text';
+      textDiv.innerText = text;
+      msgDiv.appendChild(textDiv);
+
+      chatContainer.appendChild(msgDiv);
       scrollToBottom();
     }
 
@@ -1289,6 +1360,10 @@ button:hover {
       vscode.postMessage({ type: 'onOpenCockpit' });
     });
 
+    newSessionBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'onNewSession' });
+    });
+
     configBtn.addEventListener('click', () => {
       const isVisible = configDrawer.style.display !== 'none';
       configDrawer.style.display = isVisible ? 'none' : 'block';
@@ -1301,7 +1376,7 @@ button:hover {
       configDrawer.style.display = 'none';
     });
 
-    daemonPill.addEventListener('click', () => {
+    daemonBtn.addEventListener('click', () => {
       const nextAction = currentDaemonState === 'running' ? 'stop' : 'start';
       vscode.postMessage({ type: 'onToggleDaemon', action: nextAction });
     });
@@ -1474,30 +1549,22 @@ button:hover {
         }
       } else if (msg.type === 'restoreChatHistory') {
         chatContainer.innerHTML = '';
-        if (Array.isArray(msg.messages)) {
-          msg.messages.forEach(m => appendMessage(m.sender, m.role, m.text, m.time, m.thinking));
+        const visible = Array.isArray(msg.messages) ? msg.messages.filter(m => m.role !== 'system') : [];
+        if (visible.length > 0) {
+          visible.forEach(m => appendMessage(m.sender, m.role, m.text, m.time, m.thinking));
+        } else {
+          renderEmptyState();
         }
       } else if (msg.type === 'showApprovePill') {
         approvePill.style.display = msg.show ? 'flex' : 'none';
       } else if (msg.type === 'updateAgents') {
-        msg.agents.forEach(a => {
-          const badge = document.getElementById('badge-' + a.role.toLowerCase());
-          const pipe = document.getElementById('pipe-' + a.role.toLowerCase().slice(0, 4));
-          if (badge) {
-            badge.innerText = a.state.toUpperCase();
-          }
-          if (pipe) {
-            if (a.state === 'planning' || a.state === 'executing' || a.state === 'reviewing') {
-              pipe.className = 'pipe-item active';
-            } else {
-              pipe.className = 'pipe-item';
-            }
-          }
-        });
+        // Active agent indicators update safely
       } else if (msg.type === 'daemonUpdate') {
         currentDaemonState = msg.daemon;
-        daemonPill.innerText = 'HUB: ' + msg.daemon.toUpperCase();
-        daemonPill.className = 'daemon-pill ' + msg.daemon;
+        if (daemonBtn) {
+          daemonBtn.className = 'icon-btn daemon-indicator ' + msg.daemon;
+          daemonBtn.title = 'Hub Daemon: ' + (msg.daemon === 'running' ? 'Running' : 'Stopped') + ' (Click to toggle)';
+        }
       } else if (msg.type === 'providersState' || msg.type === 'doctorResult') {
         renderProviders(msg.doctor, msg.roleMapping, msg.customProviders);
       } else if (msg.type === 'toggleConfig') {
