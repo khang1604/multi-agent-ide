@@ -3,6 +3,7 @@
 Welcome to the centralized documentation hub for **Multi Agent IDE**.
 
 ## 1. Project Overview & Progress
+- [**Agent-First Transformation Master Plan**](AGENT_FIRST_TRANSFORMATION_PLAN.md) — Strategic roadmap to evolve from "VS Code + Extension" into a true native Agent-First IDE.
 - [**Master Architecture & Code Traceability Map**](ARCHITECTURE_MAP.md) — GPS connecting features, architectural specs, primary code files, and patches.
 - [**Visual Flow & Architecture Map**](architecture/VISUAL_FLOW_MAP.md) — Interactive visual topology & sequence diagram for live tracing while coding.
 - [**Master Handoff Guide**](HANDOFF.md) — Comprehensive technical handoff, repository structure, and instructions for incoming agents.
