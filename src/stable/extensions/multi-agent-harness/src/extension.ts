@@ -6,6 +6,7 @@ import { WorktreeManager } from './worktree/WorktreeManager';
 import { ArtifactManager } from './artifacts/ArtifactManager';
 import { AgentDiffProvider } from './diff/DiffProvider';
 import { SwarmControlProvider } from './views/SwarmControlProvider';
+import { AgentSettingsPanel } from './views/AgentSettingsPanel';
 import { DaemonBridge } from './daemon/DaemonBridge';
 import { AuditorDiagnosticsManager } from './auditor/AuditorDiagnostics';
 import { StorageLayout } from './storage/StorageLayout';
@@ -136,8 +137,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
-      await vscode.commands.executeCommand('multi-agent.swarmControlView.focus');
-      swarmProvider.openConfigPanel();
+      await AgentSettingsPanel.createOrShow(context.extensionUri, daemonBridge);
     })
   );
 

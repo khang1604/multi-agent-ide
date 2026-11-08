@@ -10,6 +10,7 @@ const WorktreeManager_1 = require("./worktree/WorktreeManager");
 const ArtifactManager_1 = require("./artifacts/ArtifactManager");
 const DiffProvider_1 = require("./diff/DiffProvider");
 const SwarmControlProvider_1 = require("./views/SwarmControlProvider");
+const AgentSettingsPanel_1 = require("./views/AgentSettingsPanel");
 const DaemonBridge_1 = require("./daemon/DaemonBridge");
 const AuditorDiagnostics_1 = require("./auditor/AuditorDiagnostics");
 const StorageLayout_1 = require("./storage/StorageLayout");
@@ -111,8 +112,7 @@ function activate(context) {
         vscode.window.showInformationMessage('Auditor report simulated: diagnostics updated.');
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.configureProviders', async () => {
-        await vscode.commands.executeCommand('multi-agent.swarmControlView.focus');
-        swarmProvider.openConfigPanel();
+        await AgentSettingsPanel_1.AgentSettingsPanel.createOrShow(context.extensionUri, daemonBridge);
     }));
     context.subscriptions.push(vscode.commands.registerCommand('multiAgent.newSession', async () => {
         const input = await vscode.window.showInputBox({

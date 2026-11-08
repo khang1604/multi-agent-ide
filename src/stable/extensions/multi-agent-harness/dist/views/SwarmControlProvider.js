@@ -126,8 +126,29 @@ class SwarmControlProvider {
                 case 'onOpenCockpit':
                     vscode.commands.executeCommand('multiAgent.setupCockpitLayout');
                     break;
+                case 'onOpenSettingsPanel':
+                    await vscode.commands.executeCommand('multiAgent.configureProviders');
+                    break;
                 case 'onGetDoctor':
                     await this.sendProvidersState();
+                    break;
+                case 'onLoginProvider':
+                    if (data.provider) {
+                        await this.handleLoginProvider(data.provider);
+                    }
+                    break;
+                case 'onSetApiKey':
+                    if (data.provider) {
+                        await this.handleSetApiKey(data.provider);
+                    }
+                    break;
+                case 'onBrowseExecutable':
+                    await this.handleBrowseExecutable();
+                    break;
+                case 'onDeleteCustomProvider':
+                    if (data.id) {
+                        await this.deleteCustomProvider(data.id);
+                    }
                     break;
                 case 'onSaveCustomProvider':
                     await this.saveCustomProvider(data.provider);
@@ -200,6 +221,73 @@ class SwarmControlProvider {
         vscode.window.showInformationMessage(`Agent CLI "${provider.name || provider.id}" registered successfully.`);
         await this.sendProvidersState();
     }
+    async deleteCustomProvider(providerId) {
+        const config = vscode.workspace.getConfiguration('multiAgent');
+        const existing = config.get('customProviders') || [];
+        const updated = existing.filter(p => p.id !== providerId);
+        await config.update('customProviders', updated, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Đã gỡ bỏ Agent CLI "${providerId}".`);
+        await this.sendProvidersState();
+    }
+    async handleLoginProvider(provider) {
+        let cmd = '';
+        const prov = provider.toLowerCase();
+        if (prov.includes('antigravity') || prov === 'agy') {
+            cmd = 'agy auth login';
+        }
+        else if (prov.includes('codex')) {
+            cmd = 'codex login';
+        }
+        else if (prov.includes('claude')) {
+            cmd = 'claude login';
+        }
+        else if (prov.includes('copilot')) {
+            cmd = 'gh auth login';
+        }
+        else {
+            cmd = `${provider} login`;
+        }
+        const term = vscode.window.createTerminal({
+            name: `Agent Login: ${provider.toUpperCase()}`
+        });
+        term.show();
+        term.sendText(cmd);
+        vscode.window.showInformationMessage(`Đã mở Terminal để đăng nhập ${provider.toUpperCase()}. Vui lòng hoàn tất trong Terminal.`);
+    }
+    async handleSetApiKey(provider) {
+        const prov = provider.toLowerCase();
+        let envVarName = 'API_KEY';
+        if (prov.includes('codex') || prov.includes('openai'))
+            envVarName = 'OPENAI_API_KEY';
+        else if (prov.includes('claude') || prov.includes('anthropic'))
+            envVarName = 'ANTHROPIC_API_KEY';
+        else if (prov.includes('antigravity') || prov.includes('gemini'))
+            envVarName = 'GEMINI_API_KEY';
+        const key = await vscode.window.showInputBox({
+            prompt: `Nhập giá trị ${envVarName} cho ${provider.toUpperCase()}`,
+            password: true,
+            placeHolder: 'sk-...'
+        });
+        if (key) {
+            process.env[envVarName] = key;
+            vscode.window.showInformationMessage(`Đã lưu ${envVarName} vào môi trường runtime.`);
+            await this.sendProvidersState();
+        }
+    }
+    async handleBrowseExecutable() {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            title: 'Chọn file thực thi CLI của Agent'
+        });
+        if (uris && uris[0]) {
+            this._view?.webview.postMessage({
+                type: 'setCustomPath',
+                path: uris[0].fsPath
+            });
+        }
+    }
     async updateRoleMapping(mapping) {
         const config = vscode.workspace.getConfiguration('multiAgent');
         await config.update('roleMapping', mapping, vscode.ConfigurationTarget.Global);
@@ -207,8 +295,7 @@ class SwarmControlProvider {
         await this.sendProvidersState();
     }
     openConfigPanel() {
-        this._view?.webview.postMessage({ type: 'toggleConfig', open: true });
-        this.sendProvidersState();
+        vscode.commands.executeCommand('multiAgent.configureProviders');
     }
     syncWithDaemonStatus(status) {
         if (!this._view)
@@ -2063,101 +2150,6 @@ button:hover {
     .send-icon-btn:hover {
       background: #005999;
     }
-
-    /* Config Drawer */
-    .config-drawer {
-      background: var(--vscode-sideBar-background);
-      border: 1px solid var(--vscode-focusBorder, #007acc);
-      border-radius: 6px;
-      padding: 8px;
-      margin-bottom: 8px;
-      max-height: 260px;
-      overflow-y: auto;
-      flex-shrink: 0;
-    }
-    .config-header {
-      font-weight: 700;
-      font-size: 11px;
-      text-transform: uppercase;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .config-section {
-      background: var(--vscode-editor-background);
-      border: 1px solid var(--vscode-widget-border, #333);
-      border-radius: 4px;
-      padding: 5px;
-      margin-bottom: 5px;
-    }
-    .section-title {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
-    }
-    .role-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      font-size: 10px;
-    }
-    .role-grid select {
-      width: 100%;
-      background: var(--vscode-dropdown-background);
-      color: var(--vscode-dropdown-foreground);
-      border: 1px solid var(--vscode-dropdown-border);
-      padding: 2px 4px;
-      font-size: 10px;
-    }
-    .config-input {
-      width: 100%;
-      box-sizing: border-box;
-      background: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border);
-      padding: 3px 5px;
-      font-size: 10px;
-      margin-bottom: 3px;
-      border-radius: 3px;
-    }
-    .probe-item {
-      font-size: 10px;
-      padding: 2px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .probe-badge {
-      font-size: 8px;
-      padding: 1px 3px;
-      border-radius: 2px;
-    }
-    .probe-ready {
-      background: rgba(115, 201, 145, 0.2);
-      color: #73c991;
-      border: 1px solid #73c991;
-    }
-    .probe-missing {
-      background: rgba(200, 200, 200, 0.1);
-      color: var(--vscode-descriptionForeground);
-    }
-    button.btn-drawer {
-      width: 100%;
-      padding: 4px;
-      background: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      border-radius: 3px;
-      cursor: pointer;
-      font-size: 10px;
-      margin-top: 4px;
-    }
-    button.btn-drawer:hover {
-      background: var(--vscode-button-hoverBackground);
-    }
   </style>
 </head>
 <body>
@@ -2204,64 +2196,6 @@ button:hover {
     </div>
   </div>
 
-  <!-- Agent Config Drawer -->
-  <div id="configDrawer" class="config-drawer" style="display: none;">
-    <div class="config-header">
-      <span>Agent CLI & Providers</span>
-      <span id="closeConfigBtn" style="cursor:pointer; font-weight: bold;">✕</span>
-    </div>
-
-    <!-- Role Mapping -->
-    <div class="config-section">
-      <div class="section-title">Workflow Role Assignment</div>
-      <div class="role-grid">
-        <label>Architect:
-          <select id="selArchitect">
-            <option value="antigravity">Google Antigravity (agy)</option>
-            <option value="claude">Claude Code (claude)</option>
-          </select>
-        </label>
-        <label>Worker:
-          <select id="selWorker">
-            <option value="codex">OpenAI Codex (codex)</option>
-            <option value="antigravity">Google Antigravity (agy)</option>
-          </select>
-        </label>
-        <label>Auditor:
-          <select id="selAuditor">
-            <option value="antigravity">Gemini Auditor (agy)</option>
-            <option value="codex">Codex Linter</option>
-          </select>
-        </label>
-      </div>
-      <button id="saveRolesBtn" class="btn-drawer">Apply Role Assignment</button>
-    </div>
-
-    <!-- Detected CLI Probes -->
-    <div class="config-section">
-      <div class="section-title">Installed CLI Engines</div>
-      <div id="providersProbeList" class="probe-list">
-        <div class="probe-item"><span>Checking CLI probes...</span></div>
-      </div>
-      <button id="runDoctorBtn" class="btn-drawer" style="background:var(--vscode-button-secondaryBackground); color:var(--vscode-button-secondaryForeground)">Probe CLI Engines</button>
-    </div>
-
-    <!-- Register Custom CLI -->
-    <div class="config-section">
-      <div class="section-title">+ Register Custom Agent CLI</div>
-      <input id="customId" class="config-input" placeholder="ID (e.g. aider, gemini-cli)" />
-      <input id="customCmd" class="config-input" placeholder="Command (e.g. /usr/bin/aider or aider)" />
-      <div style="font-size:9px; margin-top:2px; display:flex; gap:8px;">
-        <label><input type="checkbox" id="rolePlan" /> Plan</label>
-        <label><input type="checkbox" id="roleImpl" checked /> Code</label>
-        <label><input type="checkbox" id="roleReview" checked /> Review</label>
-      </div>
-      <button id="addCustomBtn" class="btn-drawer">Register Custom CLI</button>
-    </div>
-
-    <button id="openVscodeSettingsBtn" class="btn-drawer" style="background:var(--vscode-button-secondaryBackground); color:var(--vscode-button-secondaryForeground)">Open VS Code Settings</button>
-  </div>
-
   <!-- Chat Messages Stream -->
   <div id="chatMessages" class="chat-container">
     ${historyContent}
@@ -2304,28 +2238,11 @@ button:hover {
     const newSessionBtn = document.getElementById('newSessionBtn');
     const cockpitBtn = document.getElementById('cockpitBtn');
     const configBtn = document.getElementById('configBtn');
-    const closeConfigBtn = document.getElementById('closeConfigBtn');
-    const configDrawer = document.getElementById('configDrawer');
     const input = document.getElementById('promptInput');
     const daemonBtn = document.getElementById('daemonBtn');
     const chatContainer = document.getElementById('chatMessages');
 
-    const selArchitect = document.getElementById('selArchitect');
-    const selWorker = document.getElementById('selWorker');
-    const selAuditor = document.getElementById('selAuditor');
-    const saveRolesBtn = document.getElementById('saveRolesBtn');
-    const providersProbeList = document.getElementById('providersProbeList');
-    const runDoctorBtn = document.getElementById('runDoctorBtn');
-    const addCustomBtn = document.getElementById('addCustomBtn');
-    const customId = document.getElementById('customId');
-    const customCmd = document.getElementById('customCmd');
-    const rolePlan = document.getElementById('rolePlan');
-    const roleImpl = document.getElementById('roleImpl');
-    const roleReview = document.getElementById('roleReview');
-    const openVscodeSettingsBtn = document.getElementById('openVscodeSettingsBtn');
-
     let currentDaemonState = 'running';
-    let availableEngines = ['antigravity', 'codex', 'claude', 'copilot'];
 
     function scrollToBottom() {
       chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -2471,111 +2388,13 @@ button:hover {
     });
 
     configBtn.addEventListener('click', () => {
-      const isVisible = configDrawer.style.display !== 'none';
-      configDrawer.style.display = isVisible ? 'none' : 'block';
-      if (!isVisible) {
-        vscode.postMessage({ type: 'onGetDoctor' });
-      }
-    });
-
-    closeConfigBtn.addEventListener('click', () => {
-      configDrawer.style.display = 'none';
+      vscode.postMessage({ type: 'onOpenSettingsPanel' });
     });
 
     daemonBtn.addEventListener('click', () => {
       const nextAction = currentDaemonState === 'running' ? 'stop' : 'start';
       vscode.postMessage({ type: 'onToggleDaemon', action: nextAction });
     });
-
-    saveRolesBtn.addEventListener('click', () => {
-      vscode.postMessage({
-        type: 'onUpdateRoleMapping',
-        mapping: {
-          architect: selArchitect.value,
-          worker: selWorker.value,
-          auditor: selAuditor.value
-        }
-      });
-    });
-
-    runDoctorBtn.addEventListener('click', () => {
-      providersProbeList.innerHTML = '<div class="probe-item"><span>Probing CLI engines...</span></div>';
-      vscode.postMessage({ type: 'onGetDoctor' });
-    });
-
-    addCustomBtn.addEventListener('click', () => {
-      const id = customId.value.trim();
-      const cmd = customCmd.value.trim();
-      if (!id || !cmd) return;
-
-      const roles = [];
-      if (rolePlan.checked) roles.push('plan');
-      if (roleImpl.checked) roles.push('implement');
-      if (roleReview.checked) roles.push('review');
-
-      vscode.postMessage({
-        type: 'onSaveCustomProvider',
-        provider: { id, name: id, command: cmd, roles }
-      });
-
-      customId.value = '';
-      customCmd.value = '';
-    });
-
-    openVscodeSettingsBtn.addEventListener('click', () => {
-      vscode.postMessage({ type: 'onOpenSettings' });
-    });
-
-    function renderProviders(doctor, roleMapping, customProviders) {
-      if (!doctor || !doctor.providers) return;
-      providersProbeList.innerHTML = '';
-      availableEngines = Object.keys(doctor.providers);
-
-      if (customProviders && Array.isArray(customProviders)) {
-        customProviders.forEach(cp => {
-          if (!availableEngines.includes(cp.id)) availableEngines.push(cp.id);
-        });
-      }
-
-      [selArchitect, selWorker, selAuditor].forEach(sel => {
-        const curVal = sel.value;
-        sel.innerHTML = '';
-        availableEngines.forEach(eng => {
-          const opt = document.createElement('option');
-          opt.value = eng;
-          opt.innerText = eng.charAt(0).toUpperCase() + eng.slice(1);
-          sel.appendChild(opt);
-        });
-        if (curVal && availableEngines.includes(curVal)) {
-          sel.value = curVal;
-        }
-      });
-
-      if (roleMapping) {
-        if (roleMapping.architect) selArchitect.value = roleMapping.architect;
-        if (roleMapping.worker) selWorker.value = roleMapping.worker;
-        if (roleMapping.auditor) selAuditor.value = roleMapping.auditor;
-      }
-
-      Object.entries(doctor.providers).forEach(([name, p]) => {
-        const item = document.createElement('div');
-        item.className = 'probe-item';
-        const isReady = p.available === true;
-        item.innerHTML = '<span>' + name.toUpperCase() + (p.version ? ' <small style="opacity:0.7">(' + p.version.slice(0, 18) + ')</small>' : '') + '</span>' +
-          '<span class="probe-badge ' + (isReady ? 'probe-ready' : 'probe-missing') + '">' + (isReady ? 'READY' : 'NOT FOUND') + '</span>';
-        providersProbeList.appendChild(item);
-      });
-
-      if (customProviders && Array.isArray(customProviders)) {
-        customProviders.forEach(cp => {
-          const item = document.createElement('div');
-          item.className = 'probe-item';
-          item.innerHTML = '<span>' + cp.id.toUpperCase() + ' <small style="opacity:0.7">(Custom CLI: ' + cp.command.slice(0, 20) + ')</small></span>' +
-            '<span class="probe-badge probe-ready">CUSTOM</span>';
-          providersProbeList.appendChild(item);
-        });
-      }
-    }
 
     window.addEventListener('message', (event) => {
       const msg = event.data;
@@ -2701,10 +2520,6 @@ button:hover {
           daemonBtn.className = 'icon-btn daemon-indicator ' + msg.daemon;
           daemonBtn.title = 'Hub Daemon: ' + (msg.daemon === 'running' ? 'Running' : 'Stopped') + ' (Click to toggle)';
         }
-      } else if (msg.type === 'providersState' || msg.type === 'doctorResult') {
-        renderProviders(msg.doctor, msg.roleMapping, msg.customProviders);
-      } else if (msg.type === 'toggleConfig') {
-        configDrawer.style.display = msg.open ? 'block' : 'none';
       }
     });
 
