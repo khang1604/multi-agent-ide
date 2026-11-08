@@ -3,6 +3,8 @@
 
 set -e
 
+export VSCODE_QUALITY="${VSCODE_QUALITY:-stable}"
+
 # git workaround
 if [[ "${CI_BUILD}" != "no" ]]; then
   git config --global --add safe.directory "/__w/$( echo "${GITHUB_REPOSITORY}" | awk '{print tolower($0)}' )"

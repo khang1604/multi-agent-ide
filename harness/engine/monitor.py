@@ -1,0 +1,228 @@
+"""Plain-text views derived exclusively from persisted workflow evidence."""
+import json
+import time
+from .presentation import brief, text, green, red, yellow, cyan, dim, bold, magenta, blue
+
+
+def changed_files(changes):
+    """Display actual per-file additions/deletions without inventing binary or legacy counts."""
+    rows = changes.get('stats', [])
+    if not rows:
+        return []
+    visible = rows[:20]
+    names = [text(row['path'], 90) for row in visible]
+    width = max(map(len, names))
+    lines = [bold(cyan('📂 Files changed:'))]
+    for name, row in zip(names, visible):
+        if row.get('binary'):
+            counts = dim('binary')
+        elif row.get('unavailable'):
+            counts = dim('stats unavailable')
+        else:
+            added = green('+' + str(row['added']))
+            removed = red('-' + str(row['removed'])) if row['removed'] else dim('-0')
+            counts = added + '  ' + removed
+        padded_name = f'{name:<{width}}'
+        lines.append(f'  {cyan(padded_name)}  {counts}')
+    total = changes.get('total_files', len(rows))
+    if total > len(visible):
+        lines.append(dim('  ... ' + str(total - len(visible)) + ' more files; use ma review --json for details'))
+    return lines
+
+
+def outcome(state, include_files=True):
+    """Render the saved agent answer and distinguish delivered from applied files."""
+    lines = []
+    response = state.get('agent_response', {}).get('summary') or state.get('summary')
+    if response:
+        header = bold(green('✨ Agent response:')) if state['status'] == 'completed' else bold(yellow('⚡ Last agent response:'))
+        lines.extend(['', header, text(response, limit=4000)])
+    if include_files:
+        lines.extend(changed_files(state.get('file_changes', {})))
+    if state['status'] == 'completed':
+        acceptance = state.get('acceptance', {})
+        if acceptance.get('status') == 'accepted':
+            lines.append(bold(green('✔ Files: applied to project' + (' automatically.' if acceptance.get('automatic') else '.'))))
+        elif acceptance.get('status') == 'partial':
+            lines.append(bold(yellow('⚡ Files: partially applied. Remaining: ' + brief(acceptance.get('remaining_files', [])))))
+            lines.append(dim('Next: ma accept ' + state['id']))
+        else:
+            lines.append(bold(yellow('⚡ Files: ready to apply.')) + ' ' + dim('Next: ma review ' + state['id'] + '; ma accept ' + state['id']))
+    elif ('call budget exhausted' in state.get('error', '').lower()
+          and state.get('calls', 0) >= state.get('max_calls', 0)):
+        lines.append(bold(red('✖ Files: not applied; the protected workflow is incomplete.')))
+        lines.append(dim('Next: ma retry ' + state['id'] + ' --extra-calls N; after completion, run ma accept ' + state['id']))
+    return lines
+
+
+class ProgressView:
+    """Append concise, deduplicated milestones without repeatedly printing snapshots."""
+
+    def __init__(self):
+        """Track only progress already shown in this terminal monitoring session."""
+        self.started = False
+        self.attempts = {}
+        self.events = set()
+        self.verification = None
+        self.lifecycle = None
+        self.finished = False
+        self.file_stats = None
+
+    def render(self, state):
+        """Return only newly observed user-facing milestones and the final response."""
+        lines = []
+        if not self.started:
+            lines = [bold(cyan('◈ Workflow: ')) + bold(state['id'])]
+            if state.get('workspace') and state['status'] not in {'completed', 'blocked', 'cancelled'}:
+                lines.append(bold(cyan('◈ Workspace:')) + ' ' + dim(state['workspace']))
+                lines.append(dim("Tip: Run 'ma open' to inspect code live in your editor."))
+            lines.append('')
+            self.started = True
+
+        def format_time(timestamp):
+            """Format milestone timestamp safely using local time."""
+            return time.strftime('%H:%M:%S', time.localtime(timestamp if timestamp else state.get('updated', time.time())))
+
+        def milestone(message, ts=None):
+            """Add one bounded, timestamped progress line without terminal control codes."""
+            lines.append(dim('[' + format_time(ts) + ']') + ' ' + message)
+
+        active_attempts = state.get('attempts', [])
+        if not self.attempts and len(active_attempts) > 1:
+            seen_phases = set()
+            for attempt in reversed(active_attempts):
+                phase = attempt.get('phase')
+                key = attempt.get('id') or (attempt['provider'], phase, attempt.get('generation'))
+                if phase in seen_phases:
+                    self.attempts[key] = attempt['status']
+                else:
+                    seen_phases.add(phase)
+
+        for attempt in active_attempts[-3:]:
+            if attempt['phase'] == 'verify':
+                continue
+            key = attempt.get('id') or (attempt['provider'], attempt['phase'], attempt.get('generation'))
+            status = attempt['status']
+            if self.attempts.get(key) == status:
+                continue
+            self.attempts[key] = status
+            label = 'started' if status == 'running' else status
+            ts = attempt.get('ended') if status in {'completed', 'failed'} else attempt.get('created')
+            label_col = bold(green(label)) if label == 'completed' else bold(red(label)) if label == 'failed' else yellow(label)
+            phase_str = text(attempt['phase'])
+            phase_col = cyan(phase_str) if phase_str == 'plan' else yellow(phase_str) if phase_str == 'implement' else magenta(phase_str)
+            milestone(bold(cyan(text(attempt['provider']))) + ' · ' + phase_col + ' ' + label_col, ts=ts)
+
+        tracked_kinds = {'files_changed', 'leader_changed', 'auto_accept_blocked', 'worker_fallback_selected', 'worker_assigned'}
+        relevant_events = [e for e in state.get('events', []) if e.get('kind') in tracked_kinds]
+        if not self.events and len(relevant_events) > 1:
+            seen_kinds = set()
+            for event in relevant_events:
+                kind = event.get('kind')
+                data = event['data'] if isinstance(event['data'], dict) else json.loads(event['data'])
+                key = (event.get('id'), kind, event.get('created'), json.dumps(data, sort_keys=True))
+                if kind in seen_kinds:
+                    self.events.add(key)
+                else:
+                    seen_kinds.add(kind)
+
+        for event in reversed(relevant_events):
+            data = event['data'] if isinstance(event['data'], dict) else json.loads(event['data'])
+            key = (event.get('id'), event['kind'], event.get('created'), json.dumps(data, sort_keys=True))
+            if key in self.events:
+                continue
+            self.events.add(key)
+            ts = event.get('created')
+            if event['kind'] == 'files_changed':
+                milestone(bold(green(str(data.get('total_files', len(data.get('files', [])))) + ' files changed')), ts=ts)
+            elif event['kind'] == 'leader_changed':
+                milestone(cyan('Leader changed: ') + brief(data), ts=ts)
+            elif event['kind'] == 'worker_assigned':
+                worker_name = text(data.get('assigned_worker', ''))
+                leader_name = text(data.get('leader', 'analyst'))
+                if worker_name == leader_name:
+                    milestone(bold(cyan('⚡ Worker assigned: ')) + bold(green(worker_name)) + dim(' (self-assigned by analyst)'), ts=ts)
+                else:
+                    milestone(bold(cyan('⚡ Worker assigned: ')) + bold(green(worker_name)) + dim(' (delegated by ' + leader_name + ')'), ts=ts)
+            elif event['kind'] == 'worker_fallback_selected':
+                milestone(yellow('Switched to ' + text(data.get('provider', 'active CLI'))) + ' · ' + text(data.get('role', 'implement')), ts=ts)
+            else:
+                milestone(red('Automatic file application blocked: ') + text(data.get('reason', 'Review required'), 400), ts=ts)
+
+        changes = state.get('file_changes', {})
+        if changes.get('stats'):
+            signature = json.dumps(changes, sort_keys=True)
+            if signature != self.file_stats:
+                lines.extend(changed_files(changes))
+                self.file_stats = signature
+
+        verification = state.get('verification', {})
+        checks = verification.get('checks', [])
+        signature = json.dumps(verification, sort_keys=True)
+        if checks and signature != self.verification:
+            passed = sum(check['exit_code'] == 0 and not check.get('reason') for check in checks)
+            test_str = f'Tests: {passed}/{len(checks)} passed'
+            milestone(green(test_str) if passed == len(checks) else red(test_str), ts=verification.get('created'))
+            self.verification = signature
+
+        status = state['status']
+        lifecycle = (status, state['phase'], state.get('error'), state.get('next_run'))
+        if status in {'completed', 'blocked', 'cancelled', 'needs_review'}:
+            if not self.finished:
+                elapsed = max(0, int(state['updated'] - state['created']))
+                status_label = status.replace('_', ' ').capitalize()
+                color_fn = green if status == 'completed' else red if status == 'blocked' else yellow
+                milestone(color_fn(status_label) + f" · {elapsed}s · {state['calls']}/{state['max_calls']} calls", ts=state.get('updated'))
+                if state.get('error'):
+                    lines.append(red('Reason: ') + text(state['error'], 1000))
+                lines.extend(outcome(state, include_files=self.file_stats is None))
+                self.finished = True
+        elif lifecycle != self.lifecycle:
+            if status == 'waiting':
+                milestone(yellow('Waiting: ') + text(state.get('error') or 'Provider is unavailable', 400), ts=state.get('updated'))
+                if state.get('next_run'):
+                    lines.append(dim('Next retry: ' + time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(state['next_run']))))
+            elif status == 'queued':
+                milestone(yellow('Queued · ') + text(state['phase']), ts=state.get('updated'))
+            elif not state.get('attempts'):
+                milestone(yellow(text(status.capitalize())) + ' · ' + text(state['phase']), ts=state.get('updated'))
+        self.lifecycle = lifecycle
+        return '\n'.join(lines)
+
+
+def render(state):
+    """Render a bounded progress view from actual persisted workflow evidence."""
+    status = state['status']
+    status_col = green(status) if status == 'completed' else red(status) if status == 'blocked' else yellow(status)
+    lines = [bold('Workflow: ') + cyan(state['id']) + '   ' + bold('Project: ') + text(state.get('project_id', 'Unknown')),
+             bold('State: ') + status_col + ' / ' + text(state['phase']),
+             bold('Task: ') + text(state.get('objective', '')),
+             f"Calls: {state['calls']}/{state['max_calls']}   Repairs: {state['repairs']}/{state['max_repairs']}",
+             f"Elapsed: {max(0, int((state['updated'] if status in {'completed','blocked','cancelled','needs_review'} else time.time()) - state['created']))}s"]
+    for attempt in state.get('attempts', [])[-3:]:
+        usage = attempt.get('usage', {})
+        if isinstance(usage, str):
+            usage = json.loads(usage)
+        att_status = attempt['status']
+        provider_col = cyan(attempt['provider'].ljust(12))
+        status_padded = att_status.ljust(12)
+        att_col = green(status_padded) if att_status == 'completed' else red(status_padded) if att_status == 'failed' else yellow(status_padded)
+        phase_col = attempt['phase'].ljust(10)
+        lines.append(f"{provider_col} {att_col} {phase_col} model={usage.get('actual_model', 'Unknown')}")
+    checks = state.get('verification', {}).get('checks', [])
+    if checks:
+        passed = sum(check['exit_code'] == 0 for check in checks)
+        test_str = f"Tests: {passed}/{len(checks)} passed"
+        lines.append(green(test_str) if passed == len(checks) else red(test_str))
+    for event in reversed(state.get('events', [])[:2]):
+        data = event['data'] if isinstance(event['data'], dict) else json.loads(event['data'])
+        lines.append(dim(time.strftime('[%H:%M:%S]', time.localtime(event['created']))) + ' ' + text(event['kind']) + ' ' + brief(data))
+    if state.get('error'):
+        lines.append(red('Reason: ') + text(state['error']))
+    if state.get('next_run') and state['status'] == 'waiting':
+        lines.append(dim('Next retry: ' + time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(state['next_run']))))
+    if state.get('delivery'):
+        lines.append(dim('Delivery: ') + text(state['delivery']))
+    if state['status'] in {'completed', 'blocked', 'cancelled', 'needs_review'}:
+        lines.extend(outcome(state))
+    return '\n'.join(lines)

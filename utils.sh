@@ -1,5 +1,31 @@
 #!/usr/bin/env bash
 
+if [[ -d "$HOME/.local/node24/bin" ]]; then
+  export PATH="$HOME/.local/node24/bin:$PATH"
+fi
+
+export VSCODE_QUALITY="${VSCODE_QUALITY:-stable}"
+
+if [[ -z "${OS_NAME}" ]]; then
+  case "$OSTYPE" in
+    darwin*) OS_NAME="osx" ;;
+    linux*)  OS_NAME="linux" ;;
+    msys*|cygwin*|win32*) OS_NAME="windows" ;;
+    *) OS_NAME="linux" ;;
+  esac
+fi
+export OS_NAME
+
+if [[ -z "${VSCODE_ARCH}" ]]; then
+  case "$(uname -m)" in
+    x86_64) VSCODE_ARCH="x64" ;;
+    aarch64|arm64) VSCODE_ARCH="arm64" ;;
+    armv7l) VSCODE_ARCH="armhf" ;;
+    *) VSCODE_ARCH="x64" ;;
+  esac
+fi
+export VSCODE_ARCH
+
 APP_NAME="${APP_NAME:-Multi Agent IDE}"
 APP_NAME_LC="$( echo "${APP_NAME}" | awk '{print tolower($0)}' | tr ' ' '-' )"
 ASSETS_REPOSITORY="${ASSETS_REPOSITORY:-MultiAgentIDE/multi-agent-ide}"
