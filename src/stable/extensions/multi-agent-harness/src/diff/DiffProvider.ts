@@ -33,3 +33,4 @@ export class AgentDiffProvider implements vscode.TextDocumentContentProvider {
     });
   }
 }
+

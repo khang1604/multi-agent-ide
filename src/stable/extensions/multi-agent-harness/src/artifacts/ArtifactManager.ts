@@ -22,7 +22,7 @@ export class ArtifactManager {
   private _onArtifactsChanged = new vscode.EventEmitter<ArtifactItem[]>();
   public readonly onArtifactsChanged = this._onArtifactsChanged.event;
 
-  constructor(private projectRoot: string) {
+  constructor(projectRoot: string) {
     this.artifactsDir = path.join(projectRoot, '.local', 'artifacts');
   }
 
@@ -98,3 +98,4 @@ export class ArtifactManager {
     await this.loadArtifacts();
   }
 }
+

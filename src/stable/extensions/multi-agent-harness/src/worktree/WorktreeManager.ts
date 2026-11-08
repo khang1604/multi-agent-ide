@@ -117,3 +117,4 @@ export class WorktreeManager {
     await this.runGit(['branch', '-D', branchName]).catch(() => {});
   }
 }
+

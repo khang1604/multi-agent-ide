@@ -45,7 +45,7 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private readonly worktreeMgr: WorktreeManager,
+    _worktreeMgr: WorktreeManager,
     private readonly artifactMgr: ArtifactManager
   ) {}
 
@@ -261,3 +261,4 @@ status: "pending_approval"
 </html>`;
   }
 }
+
