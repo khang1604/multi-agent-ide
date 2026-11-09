@@ -680,7 +680,9 @@ export class SwarmControlProvider implements vscode.WebviewViewProvider {
 
     const totalDurationSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
 
-    const statsCardTsx = `interface StatsCardProps {
+    const statsCardTsx = `import React from 'react';
+
+interface StatsCardProps {
   title: string;
   value: string;
   change: string;
@@ -707,7 +709,9 @@ export default function StatsCard({ title, value, change, isPositive = true, ico
 }
 `;
 
-    const chartWidgetTsx = `interface ChartDataPoint {
+    const chartWidgetTsx = `import React from 'react';
+
+interface ChartDataPoint {
   label: string;
   value: number;
 }
@@ -745,7 +749,7 @@ export default function ChartWidget({ title, data }: ChartWidgetProps) {
 }
 `;
 
-    const dashboardTsx = `import { useState } from 'react';
+    const dashboardTsx = `import React, { useState } from 'react';
 import StatsCard from './StatsCard.tsx';
 import ChartWidget from './ChartWidget.tsx';
 
@@ -828,7 +832,7 @@ export default function Dashboard() {
 }
 `;
 
-    const updatedAppTsx = `import { useState } from 'react';
+    const updatedAppTsx = `import React, { useState } from 'react';
 import Header from './components/Header.tsx';
 import Dashboard from './components/Dashboard.tsx';
 
@@ -1167,22 +1171,8 @@ export default function App() {
       time
     });
 
-    const isLogin = /login|đăng nhập|dang nhap|signin|sign in|auth|xác thực/i.test(prompt);
-    const isStudent = /học sinh|hoc sinh|sinh viên|sinh vien|student/i.test(prompt);
-    const isSettings = /setting|cài đặt|cai dat|cấu hình|cau hinh/i.test(prompt);
-    const isProfile = /profile|hồ sơ|ho so|người dùng|nguoi dung|user/i.test(prompt);
-
-    let compName = 'UserProfile';
-    if (isLogin) {
-      compName = 'Login';
-    } else if (isStudent) {
-      compName = 'StudentManagement';
-    } else if (isSettings) {
-      compName = 'Settings';
-    } else if (isProfile) {
-      compName = 'UserProfile';
-    }
-
+    const isSettings = /setting|cài đặt|cấu hình/i.test(prompt);
+    const compName = isSettings ? 'Settings' : 'UserProfile';
     const compPath = `src/components/${compName}.tsx`;
 
     const steps: ThinkingStep[] = [
@@ -1190,9 +1180,9 @@ export default function App() {
       { kind: 'ran', text: daemonNote || 'verify hub daemon connection (active)' },
       { kind: 'analyzed', badge: 'TS', text: `requirements: ${prompt}` },
       { kind: 'edited', badge: 'MD', text: 'PLAN.md', diffStat: { add: 22, del: 0 } },
-      { kind: 'created', badge: 'TS', text: compPath, diffStat: { add: 65, del: 0 } },
-      { kind: 'edited', badge: 'TS', text: 'src/App.tsx', diffStat: { add: 18, del: 4 } },
-      { kind: 'edited', badge: 'CSS', text: 'src/index.css', diffStat: { add: 48, del: 0 } },
+      { kind: 'created', badge: 'TS', text: compPath, diffStat: { add: 48, del: 0 } },
+      { kind: 'edited', badge: 'TS', text: 'src/App.tsx', diffStat: { add: 16, del: 4 } },
+      { kind: 'edited', badge: 'CSS', text: 'src/index.css', diffStat: { add: 32, del: 0 } },
       { kind: 'verified', badge: 'SEC', text: 'Gemini Auditor: AST and schema verified (0 errors)' }
     ];
 
@@ -1225,275 +1215,8 @@ export default function App() {
 
     const totalDurationSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
 
-    let compContent = '';
-    let extraCss = '';
-
-    if (compName === 'Login') {
-      compContent = `import { useState } from 'react';
-
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setMessage({ text: 'Vui lòng nhập đầy đủ thông tin đăng nhập!', type: 'error' });
-      return;
-    }
-    setIsSubmitting(true);
-    setMessage(null);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setMessage({ text: 'Đăng nhập thành công! Đang chuyển hướng...', type: 'success' });
-    }, 1000);
-  };
-
-  return (
-    <div className="login-card">
-      <div className="login-header">
-        <div className="login-icon">🔐</div>
-        <h2>Đăng nhập tài khoản</h2>
-        <p>Hệ thống Quản lý Học sinh & Đào tạo</p>
-      </div>
-
-      {message && (
-        <div className={\`login-alert \${message.type}\`}>
-          {message.type === 'success' ? '✓ ' : '⚠️ '}
-          {message.text}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="login-form">
-        <div className="form-group">
-          <label htmlFor="email">Email hoặc Mã số</label>
-          <input
-            id="email"
-            type="text"
-            placeholder="admin@school.edu.vn"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isSubmitting}
-            required
-          />
-        </div>
-
-        <div className="form-group">
-          <div className="form-label-row">
-            <label htmlFor="password">Mật khẩu</label>
-            <a href="#forgot" className="forgot-link" onClick={(e) => { e.preventDefault(); alert('Chức năng khôi phục mật khẩu'); }}>
-              Quên mật khẩu?
-            </a>
-          </div>
-          <div className="password-wrapper">
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isSubmitting}
-              required
-            />
-            <button
-              type="button"
-              className="toggle-pwd-btn"
-              onClick={() => setShowPassword(!showPassword)}
-              tabIndex={-1}
-            >
-              {showPassword ? '🙈' : '👁️'}
-            </button>
-          </div>
-        </div>
-
-        <div className="form-options">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isSubmitting}
-            />
-            <span>Ghi nhớ đăng nhập</span>
-          </label>
-        </div>
-
-        <button type="submit" className="login-btn" disabled={isSubmitting}>
-          {isSubmitting ? 'Đang xác thực...' : 'Đăng nhập'}
-        </button>
-      </form>
-
-      <div className="login-footer">
-        Chưa có tài khoản?{' '}
-        <a href="#register" className="register-link" onClick={(e) => { e.preventDefault(); alert('Chuyển sang trang đăng ký thành viên.'); }}>
-          Đăng ký tài khoản
-        </a>
-      </div>
-    </div>
-  );
-}
-`;
-      extraCss = `
-/* Login Styles */
-.login-card {
-  max-width: 420px;
-  margin: 2rem auto;
-  padding: 2.5rem 2rem;
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-.login-header { text-align: center; margin-bottom: 2rem; }
-.login-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
-.login-header h2 { font-size: 1.5rem; color: #f0f6fc; margin-bottom: 0.5rem; }
-.login-header p { color: #8b949e; font-size: 0.875rem; }
-.login-alert { padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.875rem; margin-bottom: 1.25rem; }
-.login-alert.success { background: rgba(63, 185, 80, 0.15); border: 1px solid rgba(63, 185, 80, 0.4); color: #3fb950; }
-.login-alert.error { background: rgba(248, 81, 73, 0.15); border: 1px solid rgba(248, 81, 73, 0.4); color: #f85149; }
-.login-form .form-group { margin-bottom: 1.25rem; }
-.login-form label { display: block; font-size: 0.85rem; color: #c9d1d9; margin-bottom: 0.4rem; font-weight: 500; }
-.form-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
-.forgot-link { font-size: 0.8rem; color: #58a6ff; text-decoration: none; }
-.forgot-link:hover { text-decoration: underline; }
-.login-form input[type="text"], .login-form input[type="password"] {
-  width: 100%; padding: 0.65rem 0.85rem; background: #0d1117; border: 1px solid #30363d;
-  border-radius: 6px; color: #c9d1d9; font-size: 0.9rem; outline: none; box-sizing: border-box;
-}
-.login-form input:focus { border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2); }
-.password-wrapper { position: relative; display: flex; align-items: center; }
-.toggle-pwd-btn { position: absolute; right: 8px; background: transparent; border: none; cursor: pointer; padding: 4px; font-size: 1rem; }
-.form-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; font-size: 0.85rem; }
-.checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #8b949e; }
-.login-btn {
-  width: 100%; padding: 0.75rem; background: #238636; color: #ffffff; border: none;
-  border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s;
-}
-.login-btn:hover:not(:disabled) { background: #2ea043; }
-.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.login-footer { text-align: center; margin-top: 1.5rem; font-size: 0.85rem; color: #8b949e; }
-.register-link { color: #58a6ff; text-decoration: none; }
-.register-link:hover { text-decoration: underline; }
-`;
-    } else if (compName === 'StudentManagement') {
-      compContent = `import { useState } from 'react';
-
-interface Student {
-  id: string;
-  name: string;
-  class: string;
-  gpa: number;
-  status: 'Xuất sắc' | 'Giỏi' | 'Khá';
-}
-
-const initialStudents: Student[] = [
-  { id: 'HS001', name: 'Nguyễn Văn An', class: '12A1', gpa: 9.2, status: 'Xuất sắc' },
-  { id: 'HS002', name: 'Trần Thị Bích', class: '12A2', gpa: 8.6, status: 'Giỏi' },
-  { id: 'HS003', name: 'Lê Hoàng Cường', class: '12A1', gpa: 7.9, status: 'Khá' },
-  { id: 'HS004', name: 'Phạm Minh Đức', class: '12A3', gpa: 8.8, status: 'Giỏi' },
-];
-
-export default function StudentManagement() {
-  const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedClass, setSelectedClass] = useState('All');
-
-  const filtered = students.filter(s => {
-    const matchName = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchClass = selectedClass === 'All' || s.class === selectedClass;
-    return matchName && matchClass;
-  });
-
-  return (
-    <div className="student-container">
-      <div className="student-header">
-        <div>
-          <h2>🎓 Danh Sách Học Sinh</h2>
-          <p>Quản lý thông tin hồ sơ và kết quả học tập của học sinh</p>
-        </div>
-        <button className="add-btn" onClick={() => alert('Mở form thêm học sinh')}>+ Thêm học sinh</button>
-      </div>
-
-      <div className="filter-bar">
-        <input
-          type="text"
-          className="search-input"
-          placeholder="🔍 Tìm kiếm theo tên hoặc mã số..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-        />
-        <select
-          className="class-select"
-          value={selectedClass}
-          onChange={e => setSelectedClass(e.target.value)}
-        >
-          <option value="All">Tất cả các lớp</option>
-          <option value="12A1">Lớp 12A1</option>
-          <option value="12A2">Lớp 12A2</option>
-          <option value="12A3">Lớp 12A3</option>
-        </select>
-      </div>
-
-      <div className="table-responsive">
-        <table className="student-table">
-          <thead>
-            <tr>
-              <th>Mã HS</th>
-              <th>Họ và Tên</th>
-              <th>Lớp</th>
-              <th>Điểm TB</th>
-              <th>Hạnh kiểm</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(s => (
-              <tr key={s.id}>
-                <td><strong>{s.id}</strong></td>
-                <td>{s.name}</td>
-                <td><span className="badge-class">{s.class}</span></td>
-                <td><strong>{s.gpa.toFixed(1)}</strong></td>
-                <td>
-                  <span className={\`status-tag \${s.status === 'Xuất sắc' ? 'completed' : s.status === 'Giỏi' ? 'verified' : 'active'}\`}>
-                    {s.status}
-                  </span>
-                </td>
-                <td>
-                  <button className="action-btn edit-btn" onClick={() => alert(\`Sửa thông tin: \${s.name}\`)}>Sửa</button>
-                  <button className="action-btn del-btn" onClick={() => setStudents(students.filter(x => x.id !== s.id))}>Xóa</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-`;
-      extraCss = `
-/* Student Styles */
-.student-container { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin-top: 1rem; }
-.student-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.student-header h2 { margin: 0; color: #f0f6fc; }
-.student-header p { margin: 0.25rem 0 0; color: #8b949e; font-size: 0.875rem; }
-.add-btn { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 0.6rem 1.2rem; font-weight: 600; cursor: pointer; }
-.filter-bar { display: flex; gap: 1rem; margin-bottom: 1rem; }
-.search-input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 0.8rem; color: #c9d1d9; }
-.class-select { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 0.8rem; color: #c9d1d9; }
-.student-table { width: 100%; border-collapse: collapse; }
-.student-table th, .student-table td { padding: 10px 12px; border-bottom: 1px solid #21262d; text-align: left; }
-.student-table th { color: #8b949e; font-size: 12px; }
-.badge-class { background: #21262d; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-.action-btn { background: transparent; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 2px 8px; margin-right: 4px; cursor: pointer; font-size: 11px; }
-.action-btn.del-btn:hover { border-color: #f85149; color: #f85149; }
-`;
-    } else if (compName === 'Settings') {
-      compContent = `import { useState } from 'react';
+    const compContent = isSettings
+      ? `import React, { useState } from 'react';
 
 export default function Settings() {
   const [notifications, setNotifications] = useState(true);
@@ -1513,9 +1236,10 @@ export default function Settings() {
     </div>
   );
 }
-`;
-    } else {
-      compContent = `export default function UserProfile() {
+`
+      : `import React from 'react';
+
+export default function UserProfile() {
   return (
     <div className="profile-card">
       <div className="avatar">👤</div>
@@ -1529,72 +1253,10 @@ export default function Settings() {
   );
 }
 `;
-    }
-
-    // Build updated App.tsx to wire up the new component
-    const tabLabel = compName === 'Login' ? '🔐 Đăng nhập' : compName === 'StudentManagement' ? '🎓 Quản lý học sinh' : compName === 'Settings' ? '⚙️ Cài đặt' : '👤 Hồ sơ';
-    const tabKey = compName.toLowerCase();
-
-    const updatedAppContent = `import { useState } from 'react';
-import Header from './components/Header.tsx';
-import Dashboard from './components/Dashboard.tsx';
-import ${compName} from './components/${compName}.tsx';
-
-export default function App() {
-  const [view, setView] = useState<'dashboard' | '${tabKey}' | 'overview'>('${tabKey}');
-
-  return (
-    <div className="app-container">
-      <Header title="Hệ thống Quản lý Học sinh & Multi-Agent Swarm" />
-      <nav className="tab-nav">
-        <button
-          className={\`tab-btn \${view === 'dashboard' ? 'active' : ''}\`}
-          onClick={() => setView('dashboard')}
-        >
-          📊 Dashboard
-        </button>
-        <button
-          className={\`tab-btn \${view === '${tabKey}' ? 'active' : ''}\`}
-          onClick={() => setView('${tabKey}')}
-        >
-          ${tabLabel}
-        </button>
-        <button
-          className={\`tab-btn \${view === 'overview' ? 'active' : ''}\`}
-          onClick={() => setView('overview')}
-        >
-          ⚡ System Overview
-        </button>
-      </nav>
-      <main className="content">
-        {view === 'dashboard' && <Dashboard />}
-        {view === '${tabKey}' && <${compName} />}
-        {view === 'overview' && (
-          <div className="overview-card">
-            <h3>System Status</h3>
-            <p>Architect, Worker and Auditor agents are operating cooperatively.</p>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
-`;
 
     try {
-      const currentCssPath = path.join(targetRoot, 'src', 'index.css');
-      let currentCss = '';
-      if (fsSync.existsSync(currentCssPath)) {
-        currentCss = await fs.readFile(currentCssPath, 'utf-8');
-      }
-      const updatedCssContent = extraCss && !currentCss.includes(compName.toLowerCase() + '-card') && !currentCss.includes(compName.toLowerCase() + '-container')
-        ? (currentCss ? currentCss + '\n' + extraCss : extraCss)
-        : currentCss;
-
       const filesToStage = [
-        { relPath: compPath, content: compContent, add: 50, del: 0 },
-        { relPath: 'src/App.tsx', content: updatedAppContent, add: 18, del: 4 },
-        ...(extraCss && updatedCssContent !== currentCss ? [{ relPath: 'src/index.css', content: updatedCssContent, add: 45, del: 0 }] : [])
+        { relPath: compPath, content: compContent, add: 50, del: 0 }
       ];
       // Stage files in ~/.multi-agent-ide/brain/<slug>/staging and open Continuous Multi-Diff
       await this.stageFilesAndOpenDiff(targetRoot, filesToStage);
@@ -1779,19 +1441,19 @@ export default defineConfig({
 </html>
 `;
 
-    const mainTsx = `import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+    const mainTsx = `import React from 'react';
+import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
     <App />
-  </StrictMode>,
+  </React.StrictMode>,
 );
 `;
 
-    const appTsx = `import { useState } from 'react';
+    const appTsx = `import React, { useState } from 'react';
 import Header from './components/Header.tsx';
 
 export default function App() {
@@ -1812,7 +1474,9 @@ export default function App() {
 }
 `;
 
-    const headerTsx = `export default function Header({ title }: { title: string }) {
+    const headerTsx = `import React from 'react';
+
+export default function Header({ title }: { title: string }) {
   return (
     <header className="navbar">
       <h1>⚡ {title}</h1>
