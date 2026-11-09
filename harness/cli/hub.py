@@ -58,6 +58,7 @@ def parser():
     run.add_argument('--mode', choices=['auto','small','standard','complex'], default='auto')
     run.add_argument('--handoff-file', help='JSON analysis summary, decisions and relevant file/range references')
     run.add_argument('--plan-file', help='Reuse an existing leader plan JSON instead of paying for another planner call')
+    run.add_argument('--force', action='store_true', help='Cancel any active workflow before starting')
     run.add_argument('--no-start', action='store_true')
     status = sub.add_parser('status')
     status.add_argument('workflow_id', nargs='?'); status.add_argument('--watch', action='store_true')
@@ -114,13 +115,44 @@ def main(argv=None):
         output(identify(hub, Path.cwd(), args.name, json.loads(args.verify) if args.verify else None))
     elif args.command == 'projects': output(hub.store.all('SELECT * FROM projects'))
     elif args.command == 'run':
-        objective = Path(args.task_file).read_text(encoding='utf-8') if args.task_file else args.objective
+        if args.task_file:
+            raw_task = Path(args.task_file).read_text(encoding='utf-8')
+            try:
+                task_data = json.loads(raw_task)
+                objective = task_data.get('objective', raw_task) if isinstance(task_data, dict) else raw_task
+            except Exception:
+                objective = raw_task
+        else:
+            objective = args.objective
         if not objective:
             raise ValueError('Provide an objective or --task-file')
         plan = json.loads(Path(args.plan_file).read_text(encoding='utf-8')) if args.plan_file else None
-        output(hub.start(args.project, objective, args.request_key or uuid.uuid4().hex,
+
+        project_arg = args.project
+        project_name = project_arg
+        if project_arg in ('here', '.', 'current') or os.path.isdir(project_arg):
+            from agenthub.discovery import identify
+            target_dir = Path.cwd() if project_arg in ('here', '.', 'current') else Path(project_arg)
+            try:
+                res = identify(hub, target_dir)
+                project_name = res['project']['name']
+            except Exception:
+                pass
+        else:
+            try:
+                hub.store.project(project_name)
+            except ValueError:
+                from agenthub.discovery import identify
+                try:
+                    res = identify(hub, Path.cwd())
+                    project_name = res['project']['name']
+                except Exception:
+                    pass
+
+        output(hub.start(project_name, objective, args.request_key or uuid.uuid4().hex,
                          args.max_calls, args.mode, launch=not args.no_start, prepared_plan=plan,
-                         handoff=json.loads(Path(args.handoff_file).read_text(encoding='utf-8')) if args.handoff_file else None))
+                         handoff=json.loads(Path(args.handoff_file).read_text(encoding='utf-8')) if args.handoff_file else None,
+                         force=args.force))
     elif args.command == 'status':
         while True:
             if args.workflow_id:

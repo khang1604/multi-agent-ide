@@ -80,12 +80,22 @@ def disable_sparse_checkout(path):
 
 def prepare(store, workflow, project):
     """Create and register an isolated workflow worktree from a clean approved baseline."""
+    source = Path(project['path'])
     if workflow['workspace']:
         path = Path(workflow['workspace'])
         if not path.exists():
             raise ValueError('Saved worktree no longer exists; restore it before retrying')
+        if (source / 'node_modules').is_dir() and not (path / 'node_modules').exists():
+            try:
+                os.symlink(source / 'node_modules', path / 'node_modules')
+            except Exception:
+                pass
+        if (source / '.venv').is_dir() and not (path / '.venv').exists():
+            try:
+                os.symlink(source / '.venv', path / '.venv')
+            except Exception:
+                pass
         return str(path), workflow['base_commit']
-    source = Path(project['path'])
     path = store.home / 'workspaces' / workflow['id']
     path.parent.mkdir(parents=True, exist_ok=True)
     if is_git_repo(source):
@@ -109,6 +119,16 @@ def prepare(store, workflow, project):
                             dst_f = path / rel
                             dst_f.parent.mkdir(parents=True, exist_ok=True)
                             clone_file(src_f, dst_f)
+        if (source / 'node_modules').is_dir() and not (path / 'node_modules').exists():
+            try:
+                os.symlink(source / 'node_modules', path / 'node_modules')
+            except Exception:
+                pass
+        if (source / '.venv').is_dir() and not (path / '.venv').exists():
+            try:
+                os.symlink(source / '.venv', path / '.venv')
+            except Exception:
+                pass
         return str(path), commit
     else:
         if not path.exists():
@@ -129,6 +149,16 @@ def prepare(store, workflow, project):
         if not git(path, 'rev-parse', 'HEAD', check=False):
             git(path, 'commit', '--allow-empty', '-m', 'Baseline', check=False)
         commit = git(path, 'rev-parse', 'HEAD', check=False) or 'initial'
+        if (source / 'node_modules').is_dir() and not (path / 'node_modules').exists():
+            try:
+                os.symlink(source / 'node_modules', path / 'node_modules')
+            except Exception:
+                pass
+        if (source / '.venv').is_dir() and not (path / '.venv').exists():
+            try:
+                os.symlink(source / '.venv', path / '.venv')
+            except Exception:
+                pass
         return str(path), commit
 
 

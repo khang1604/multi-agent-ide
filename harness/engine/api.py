@@ -14,7 +14,7 @@ class Hub:
         self.store = Store(home)
         self.config = load(home)
 
-    def start(self, project, objective, request_key, max_calls=None, mode='auto', launch=True, prepared_plan=None, handoff=None):
+    def start(self, project, objective, request_key, max_calls=None, mode='auto', launch=True, prepared_plan=None, handoff=None, force=False):
         """Validate a task request and create or recover its durable workflow without duplicate dispatch."""
         import os
         from .project_context import is_removed
@@ -48,7 +48,7 @@ class Hub:
             raise ValueError('max_calls must be 1–50')
         with self.store.connection() as db:
             db.execute("UPDATE health SET until=0, reason='' WHERE reason NOT LIKE 'quota:%'")
-        flow = self.store.create(project, objective, request_key, level, cap, policy['max_repairs'])
+        flow = self.store.create(project, objective, request_key, level, cap, policy['max_repairs'], force=force)
         if handoff is not None and flow['calls'] == 0 and flow['handoff'] == '{}':
             self.store.update(flow['id'], handoff=encode(handoff))
         if prepared_plan is not None and flow['calls'] == 0 and flow['phase'] == 'plan':

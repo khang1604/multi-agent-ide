@@ -425,15 +425,20 @@ class Engine:
             return
         if readonly_changed:
             self.store.update(flow['id'], generation, status='blocked', error=result.error)
+            self._export_status(project['path'], flow['id'], 'blocked', role, result.error)
             return
         if result.unsafe_to_continue:
             self.store.update(flow['id'], generation, status='blocked', error='Old process could not be stopped; no failover permitted')
+            self._export_status(project['path'], flow['id'], 'blocked', role, 'Old process could not be stopped; no failover permitted')
             return
         if not result.report:
             if result.failure_category == 'task_blocked':
+                reason = result.error.strip()[-1000:] if result.error else 'Task blocked by agent policy'
                 self.store.update(flow['id'], generation, status='blocked', error=result.error[-6000:])
                 self.store.event(flow['id'], 'task_blocked', {'provider': provider, 'role': role,
-                                                            'provider_health_changed': False})
+                                                            'provider_health_changed': False,
+                                                            'reason': reason})
+                self._export_status(project['path'], flow['id'], 'blocked', role, reason)
                 return
             category = failure(result.error)
             entry = self.config['providers'][provider]
@@ -458,6 +463,7 @@ class Engine:
         worker = self.store.one("SELECT provider FROM attempts WHERE workflow_id=? AND phase='implement' AND status='completed' ORDER BY created DESC LIMIT 1", (flow['id'],))
         if role == 'implement':
             self.store.event(flow['id'], 'files_changed', ws.file_changes(path))
+            self._export_staging(project['path'], flow['id'], path)
         self.store.remember(project['id'], 'checkpoint', role + ': ' + report['summary'][:3500])
         if role == 'plan':
             complexity = report['complexity'] if report.get('complexity') in {'small', 'standard', 'complex'} else flow['complexity']
@@ -466,18 +472,23 @@ class Engine:
                               plan=encode(report), complexity=complexity, error='', summary=report['summary'])
             if assigned_worker:
                 self.store.event(flow['id'], 'worker_assigned', {'assigned_worker': assigned_worker, 'leader': flow['leader']})
+            self._export_living_plan(project['path'], flow['id'], flow['leader'], report)
+            self._export_status(project['path'], flow['id'], 'waiting_approval', 'plan', report.get('summary', ''))
         elif role == 'implement':
             self.store.update(flow['id'], generation, status='queued', phase='verify',
                               summary=report['summary'], error='', review=encode({'previous_findings': json.loads(flow['review']).get('findings', [])}))
+            self._export_status(project['path'], flow['id'], 'auditing', 'verify', report.get('summary', ''))
         else:
             if report['verdict'] not in {'approve', 'changes_requested'}:
                 self.store.update(flow['id'], generation, status='blocked', error='Reviewer returned no usable verdict')
+                self._export_status(project['path'], flow['id'], 'blocked', 'review', 'Reviewer returned no usable verdict')
                 return
             reviews = json.loads(flow['review']).get('reviews', [])
             reviews.append({'provider': provider, 'fingerprint': before, 'report': report,
                             'independent_provider': bool(worker and worker['provider'] != provider)})
             review = {'reviews': reviews, 'findings': report['findings']}
             if report['verdict'] == 'changes_requested' or report['findings']:
+                self._export_audit_report(project['path'], flow['id'], provider, report)
                 self.repair(flow, 'Reviewer requested changes', review)
                 return
             required = self.config['auto'][flow['complexity']]['reviewers']
@@ -495,6 +506,116 @@ class Engine:
                     return
             self.store.update(flow['id'], generation, status='completed', review=encode(review), error='', summary=report['summary'])
             self.store.event(flow['id'], 'completed', {'reviews': len(reviews), 'calls': flow['calls']})
+            self._export_status(project['path'], flow['id'], 'completed', 'review', report.get('summary', ''))
+            self._export_audit_report(project['path'], flow['id'], provider, report)
+
+    def _get_brain_dir(self, project_path):
+        resolved = str(Path(project_path).resolve())
+        h = 5381
+        for c in resolved:
+            h = (((h << 5) + h) + ord(c)) & 0xFFFFFFFF
+        signed_h = -((~h & 0xFFFFFFFF) + 1) if (h & 0x80000000) else h
+        hex_str = f"{abs(signed_h):x}".zfill(8)
+        slug = f"{Path(project_path).name.replace(' ', '_')}-{hex_str}"
+        brain_dir = Path.home() / '.multi-agent-ide' / 'brain' / slug
+        brain_dir.mkdir(parents=True, exist_ok=True)
+        return brain_dir
+
+    def _export_living_plan(self, project_path, flow_id, leader, report):
+        """Export real AI planner report to centralized living PLAN.md without polluting workspace."""
+        try:
+            brain_dir = self._get_brain_dir(project_path)
+            plan_path = brain_dir / 'PLAN.md'
+
+            summary = report.get('summary', '')
+            steps = report.get('steps', [])
+            acceptance = report.get('acceptance', [])
+            subtasks = report.get('subtasks', [])
+            complexity = report.get('complexity', 'standard')
+            worker = report.get('assigned_worker', 'copilot')
+
+            lines = [
+                f"# Living Plan: {summary}\n",
+                f"> **Workflow ID:** `{flow_id}`  ",
+                f"> **Architect:** `{leader}` | **Assigned Worker:** `{worker}` | **Complexity:** `{complexity}`\n",
+                "## 1. Strategy & Steps"
+            ]
+            for i, s in enumerate(steps, 1):
+                lines.append(f"{i}. {s}")
+            lines.append("\n## 2. Work Breakdown")
+            for st in subtasks:
+                lines.append(f"- [ ] **[{st.get('agent', worker).upper()}]** {st.get('title', '')} — *{st.get('reason', '')}*")
+            lines.append("\n## 3. Acceptance Criteria")
+            for a in acceptance:
+                lines.append(f"- [ ] {a}")
+            lines.append("")
+
+            plan_path.write_text("\n".join(lines), encoding='utf-8')
+        except Exception:
+            pass
+
+    def _export_staging(self, project_path, flow_id, workspace_path):
+        """Export real staging diff and file change list to centralized brain directory."""
+        try:
+            brain_dir = self._get_brain_dir(project_path)
+            diff_text = ws.diff(workspace_path)
+            (brain_dir / 'DIFF_STAGING.diff').write_text(diff_text, encoding='utf-8')
+            files = ws.file_changes(workspace_path)
+            meta = {
+                'flow_id': flow_id,
+                'workspace': str(workspace_path),
+                'changed_files': files,
+                'updated': time.time()
+            }
+            (brain_dir / 'staging.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+
+    def _export_status(self, project_path, flow_id, state, phase, summary=''):
+        """Export workflow status to centralized brain directory."""
+        try:
+            brain_dir = self._get_brain_dir(project_path)
+            data = {
+                'flow_id': flow_id,
+                'state': state,
+                'phase': phase,
+                'summary': summary,
+                'updated': time.time()
+            }
+            (brain_dir / 'status.json').write_text(json.dumps(data, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+
+    def _export_audit_report(self, project_path, flow_id, auditor, report):
+        """Export real Auditor report to centralized brain directory."""
+        try:
+            brain_dir = self._get_brain_dir(project_path)
+            data = {
+                'flow_id': flow_id,
+                'auditor': auditor,
+                'verdict': report.get('verdict', 'approve'),
+                'summary': report.get('summary', ''),
+                'findings': report.get('findings', []),
+                'updated': time.time()
+            }
+            (brain_dir / 'audit_report.json').write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
+
+            lines = [
+                f"# Audit Report: [{data['verdict'].upper()}]\n",
+                f"> **Auditor:** `{auditor}` | **Workflow ID:** `{flow_id}`\n",
+                "## Summary",
+                data['summary'],
+                "\n## Findings"
+            ]
+            if data['findings']:
+                for f in data['findings']:
+                    lines.append(f"- {f}")
+            else:
+                lines.append("- No issues found. Clean implementation verified.")
+            lines.append("")
+            (brain_dir / 'AUDIT_REPORT.md').write_text("\n".join(lines), encoding='utf-8')
+        except Exception:
+            pass
 
     def repair(self, flow, reason, review=None):
         """Schedule an allowed implementation repair within existing repair/call limits."""

@@ -56,5 +56,64 @@ Khi người dùng nhập yêu cầu (objective) trong khung chat Swarm:
 
 ---
 
+## 6. Ngôn Ngữ Mặc Định Của IDE Là 100% Tiếng Anh (Strict English-Only Invariant)
+- **Quy tắc tuyệt đối:** Toàn bộ giao diện người dùng của IDE (UI labels, button text, input placeholders, thinking step descriptions, agent messages, status banners, system notices) **BẮT BUỘC PHẢI LÀ 100% TIẾNG ANH (ENGLISH)**.
+- **Tuyệt đối cấm:** KHÔNG ĐƯỢC chèn tiếng Việt vào mã nguồn IDE, nhãn UI, chuỗi hiển thị, hoặc nội dung tin nhắn do Agent phát ra trong Swarm Chat / Control View.
+- **Phân định ranh giới ngôn ngữ:** Trao đổi giữa Assistant và Người dùng trong cửa sổ chat lập trình dùng Tiếng Việt; toàn bộ sản phẩm IDE, mã nguồn, commit, UI text và Agent chatter trong IDE phải là Tiếng Anh.
+
+---
+
+## 7. Nghiệm Thu Hoàn Thành Tác Vụ Thuộc Về Agent Audit (Auditor Completion Protocol)
+- **Quy tắc phán quyết:** Báo cáo tổng kết và câu trả lời hoàn thành tác vụ (`status: 'completed'`) **BẮT BUỘC PHẢI DO AGENT AUDIT TRẢ LỜI TRỰC TIẾP** dựa trên báo cáo nghiệm thu thực tế (`audit_report.json` / `AUDIT_REPORT.md`), bao gồm phán quyết (`VERDICT`), đánh giá (`SUMMARY`), và danh sách phát hiện (`FINDINGS`).
+- **Tuyệt đối cấm thông báo giả:** Cấm phát sinh các tin nhắn hệ thống giả lập hoặc hardcode kết quả nghiệm thu khi chưa có phán quyết từ Auditor Agent.
+- **Tuân thủ quy tắc bất biến:** Cấm phớt lờ các yêu cầu tổng quan hệ thống của người dùng hoặc tự ý suy diễn hành động khi chưa được xác nhận.
+
+---
+
+## 8. Tiêu Chuẩn Giao Diện Khung Chat Antigravity (Antigravity Chat UI Standards)
+- **Thiết kế Borderless tối giản:** Toàn bộ khung chat loại bỏ mọi viền hộp thô kệch (`border: none`, `background: transparent / rgba(255,255,255,0.02)`), typography chuẩn (`13px`, line-height `1.6`, font chữ mượt mà).
+- **Bong bóng tin nhắn người dùng:** Bo góc mềm mại (`border-radius: 12px 12px 2px 12px`), nền tối mờ cao cấp (`#1e2638`), canh phải.
+- **Tiến trình suy nghĩ (Thinking Accordion):** Thiết kế accordion thu gọn/mở rộng mượt mà (`Thinking (Xs) ⌵`) kèm đường timeline mảnh bên trái (`1.5px solid rgba(148, 163, 184, 0.25)`), stream trực tiếp các bước suy nghĩ thực tế từ Agent và token/thời gian thực thi.
+- **Khung nhập lệnh (Floating Input Card):** Thiết kế dạng capsule/card nổi ở đáy, bo góc `12px`, hiệu ứng viền mờ, hỗ trợ auto-expand theo nội dung, phím tắt `Ctrl+Enter` gửi lệnh, và nút gửi bo tròn hiện đại.
+- **Thanh trạng thái Agent Swarm (HUD Swimlanes):** Các thẻ capsule pill hiển thị trạng thái động của Lead Architect, Worker, Auditor (`IDLE`, `PLANNING`, `EXECUTING`, `REVIEWING`).
+
+---
+
+## 9. Cơ Chế Điều Phối Độc Lập & Bất Biến Không Gian Làm Việc (Universal Workspace Dispatch)
+- **Tuyệt đối cấm dùng đường dẫn tương đối trong lệnh điều phối:** Khi dispatch nhiệm vụ từ IDE, BẮT BUỘC phải dùng đường dẫn tuyệt đối tới CLI Kernel (`<IDE_ROOT>/harness/cli/hub.py`) và thiết lập `PYTHONPATH=<IDE_ROOT>/harness` cùng `PATH` đầy đủ.
+- **Tự động đăng ký không gian làm việc (Dynamic Workspace Identification):** IDE phải tự động xác định và đăng ký workspace đang mở của người dùng trong SQLite Hub Store (`hub.py here --verify ...`) thay vì hardcode tên project là `default`.
+- **Thực thi IPC trực tiếp và giám sát tiến trình:** Luồng điều phối phải kiểm tra mã thoát (exit code), stream logs lỗi ngay lập tức về UI nếu tiến trình gặp sự cố, tuyệt đối không được để giao diện im lặng chờ đợi khi lệnh điều phối bị lỗi.
+
+---
+
+## 10. Chợ Tiện Ích Độc Lập Open VSX (Open VSX Marketplace Invariant)
+- **Nguồn extension chính thức:** Sử dụng Open VSX Registry (`https://open-vsx.org/vscode/gallery`) làm kho extension mặc định theo đúng lựa chọn của người dùng.
+- **Hiển thị đầy đủ danh mục khám phá:** Chợ extension trong IDE không được để trống khi mới mở. Bắt buộc hiển thị danh sách extensions phổ biến (`Popular`), đề xuất (`Recommended`) và cho phép tìm kiếm, cài đặt mượt mà từ Open VSX.
+
+---
+
+## 11. Bảo Toàn Toàn Bộ Tính Năng Đã Viết Sẵn (Preserve & Reconnect Pre-existing Features)
+- **Tận dụng mã nguồn đã viết:** Các tính năng quản lý Provider, Doctor health check, CLI login (`agy`, `copilot login`, `codex login`, `claude login`), API Key fallback, Staging action bar đã được xây dựng sẵn trong lịch sử repository. Nhiệm vụ là kết nối lại hoàn chỉnh các module này vào hệ thống Native Contrib, TUYỆT ĐỐI KHÔNG TỰ Ý XÓA HOẶC TẮT BẤT KỲ TÍNH NĂNG NÀO khi chưa có sự đồng ý của người dùng.
+- **Quy trình thay đổi:** Nếu gặp vướng mắc kỹ thuật chưa rõ hướng xử lý, BẮT BUỘC phải dừng lại hỏi ý kiến người dùng (`/grill-me`), không tự ý suy diễn hoặc cắt bỏ tính năng.
+
+---
+
+## 12. Chuẩn Giao Diện Khung Chat Antigravity, Tích Hợp Cài Đặt Chuẩn & Tinh Gọn Thông Báo (Antigravity Chat Input, Native Settings Integration & Meaningful Messages)
+- **Thiết kế Khung Nhập Lệnh Antigravity (Antigravity Input Card):**
+  - Khung nhập lệnh mô phỏng chuẩn xác giao diện Google Antigravity IDE: bo góc mềm mại (`12px` - `14px`), viền mờ cao cấp, textarea tự co giãn với placeholder: `"Assign engineering objective to Multi-Agent Swarm... (@ to mention, / for actions)"`.
+  - Hàng chức năng bên dưới khung nhập:
+    - Bên trái: Icon nút thêm ngữ cảnh (`Codicon.add`), nhãn pill định danh Swarm/Model (`$(sparkle) Multi-Agent Swarm`).
+    - Bên phải: Nút tròn biểu tượng mũi tên gửi lệnh (`Codicon.arrowUp`); tự động chuyển thành nút dừng đỏ (`Codicon.debugStop`) khi Swarm đang thực thi nhiệm vụ.
+    - Tuyệt đối hạn chế dùng chữ khi đã có icon biểu đạt: loại bỏ các nút chữ thừa (`Dispatch Swarm`, `Stop`, `Ctrl+Enter to dispatch`).
+- **Tinh Gọn Header & Tích Hợp Cài Đặt Mặc Định (Single Settings Button & Native Chat > Agent Settings):**
+  - Cụm phím chức năng trên header khung chat chỉ giữ lại duy nhất **1 nút cài đặt** (`Codicon.settingsGear`).
+  - Khi click nút cài đặt, mở trực tiếp trình cài đặt mặc định của VS Code tại phân mục `Chat > Agent` (`workbench.action.openSettings` với truy vấn `'chat.agent'`).
+  - Toàn bộ tính năng cấu hình Multi-Agent (chọn model/CLI cho Architect, Worker, Auditor, bật/tắt Autopilot, liên kết chạy Doctor, CLI Login) được tích hợp trực tiếp vào schema cấu hình mặc định dưới tiền tố `chat.agent.*`, không viết giao diện ngoài rườm rà.
+- **Loại Bỏ Hoàn Toàn Thông Báo Vô Nghĩa (Zero Meaningless Messages):**
+  - Tuyệt đối cấm hiển thị các câu thông báo khởi tạo, chào hỏi rỗng tuếch hoặc vô nghĩa trong khung chat (như `MA Chat & Control View Initialized. Multi-Agent Orchestrator ready...`).
+  - Khung chat phải khởi động hoàn toàn sạch sẽ (clean stream), chỉ hiển thị thông điệp thực tế của người dùng, tiến trình suy nghĩ (Thinking stream) thực tế từ Agent và báo cáo nghiệm thu cuối cùng của Auditor.
+
+---
+
 The operator explicitly authorized direct edits in this primary checkout.
 Do not create extra worktrees unless the operator requests them. Preserve user changes and all other security boundaries.

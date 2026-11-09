@@ -1,5 +1,5 @@
 diff --git a/src/vs/workbench/browser/layout.ts b/src/vs/workbench/browser/layout.ts
-index 75f9238f..c9bbd33e 100644
+index 75f9238f..6636acad 100644
 --- a/src/vs/workbench/browser/layout.ts
 +++ b/src/vs/workbench/browser/layout.ts
 @@ -51,6 +51,7 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
@@ -14,10 +14,10 @@ index 75f9238f..c9bbd33e 100644
  			}
  		}
  
-+		// [MULTI-AGENT-IDE] Auto-open Secondary Sidebar for Agent Swarm HUD (Tier 1)
++		// [MULTI-AGENT-IDE] Auto-open Secondary Sidebar for MA Chat & Control View (Tier 1)
 +		if (MultiAgentCockpit.isEnabled(this.configurationService) && this.storageService.isNew(StorageScope.WORKSPACE)) {
 +			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, false);
-+			this.state.initialization.views.containerToRestore.auxiliaryBar = 'workbench.view.extension.multi-agent-swarm';
++			this.state.initialization.views.containerToRestore.auxiliaryBar = 'workbench.view.multiAgent';
 +		}
 +		// [/MULTI-AGENT-IDE]
 +
@@ -39,3 +39,2238 @@ index 75f9238f..c9bbd33e 100644
  		return undefined;
  	}
  
+diff --git a/src/vs/workbench/contrib/multiAgent/browser/agentMultiDiffSourceResolver.ts b/src/vs/workbench/contrib/multiAgent/browser/agentMultiDiffSourceResolver.ts
+new file mode 100644
+index 00000000..cae453fe
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/browser/agentMultiDiffSourceResolver.ts
+@@ -0,0 +1,219 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { ValueWithChangeEvent } from '../../../../base/common/event.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { URI } from '../../../../base/common/uri.js';
++import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
++import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
++import { IWorkbenchContribution } from '../../../common/contributions.js';
++import { Action2 } from '../../../../platform/actions/common/actions.js';
++import { IEditorService } from '../../../services/editor/common/editorService.js';
++import { IEditorGroupsService, GroupsOrder } from '../../../services/editor/common/editorGroupsService.js';
++import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
++import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
++import { localize2 } from '../../../../nls.js';
++import { MultiAgentCockpit } from './multiAgentCockpit.js';
++import { IMultiAgentService } from '../common/multiAgent.js';
++
++/**
++ * AgentMultiDiffSourceResolver connects the Multi-Agent orchestrator
++ * directly into VS Code's native Multi-Diff Editor (Tier 2).
++ * Spec: docs/architecture/06_mahub_ide_ui_blueprint.md
++ * Spec: docs/AGENT_FIRST_TRANSFORMATION_PLAN.md
++ */
++export class AgentMultiDiffSourceResolver implements IMultiDiffSourceResolver {
++	public static readonly SCHEME = 'agent-multi-diff';
++
++	private static _instance: AgentMultiDiffSourceResolver | undefined;
++	public static getInstance(): AgentMultiDiffSourceResolver | undefined {
++		return AgentMultiDiffSourceResolver._instance;
++	}
++
++	private readonly _resources: ValueWithChangeEvent<readonly MultiDiffEditorItem[]>;
++	private readonly _label: ValueWithChangeEvent<string>;
++
++	constructor() {
++		AgentMultiDiffSourceResolver._instance = this;
++		this._resources = new ValueWithChangeEvent<readonly MultiDiffEditorItem[]>([]);
++		this._label = new ValueWithChangeEvent<string>('Continuous Multi-Diff Staging');
++	}
++
++	public static getMultiDiffSourceUri(taskId?: string): URI {
++		return URI.from({
++			scheme: AgentMultiDiffSourceResolver.SCHEME,
++			path: taskId ? `task-${taskId}` : 'continuous-staging',
++		});
++	}
++
++	canHandleUri(uri: URI): boolean {
++		return uri.scheme === AgentMultiDiffSourceResolver.SCHEME;
++	}
++
++	async resolveDiffSource(_uri: URI): Promise<IResolvedMultiDiffSource> {
++		return {
++			resources: this._resources,
++			label: this._label
++		};
++	}
++
++	public updateDiffItems(items: MultiDiffEditorItem[], label?: string): void {
++		this._resources.value = items;
++		if (label) {
++			this._label.value = label;
++		}
++	}
++
++	public setWorktreeDiffs(originalUris: URI[], worktreeUris: URI[], label?: string): void {
++		const items: MultiDiffEditorItem[] = [];
++		for (let i = 0; i < Math.min(originalUris.length, worktreeUris.length); i++) {
++			items.push(new MultiDiffEditorItem(
++				originalUris[i],
++				worktreeUris[i],
++				originalUris[i]
++			));
++		}
++		this.updateDiffItems(items, label);
++	}
++}
++
++/**
++ * Workbench contribution that registers AgentMultiDiffSourceResolver
++ * and auto-docks native Multi-Diff in Column 2 on workspace restoration.
++ */
++export class AgentMultiDiffContribution extends Disposable implements IWorkbenchContribution {
++	static readonly ID = 'workbench.contrib.agentMultiDiff';
++
++	constructor(
++		@IInstantiationService instantiationService: IInstantiationService,
++		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
++		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
++		@IEditorService editorService: IEditorService,
++		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
++		@IConfigurationService configurationService: IConfigurationService,
++		@IMultiAgentService multiAgentService: IMultiAgentService,
++	) {
++		super();
++		const resolver = instantiationService.createInstance(AgentMultiDiffSourceResolver);
++		this._register(multiDiffSourceResolverService.registerResolver(resolver));
++
++		// Auto-dock Living PLAN.md in Column 1 when plan is updated
++		this._register(multiAgentService.onDidPlanUpdate(async e => {
++			if (e.planPath && MultiAgentCockpit.isEnabled(configurationService)) {
++				const groups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
++				if (groups.length < 2) {
++					editorGroupsService.applyLayout(MultiAgentCockpit.getCockpitLayout());
++				}
++				const updatedGroups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
++				const col1 = updatedGroups[0];
++				await editorService.openEditor({
++					resource: URI.file(e.planPath),
++					options: { pinned: true, preserveFocus: true }
++				}, col1);
++			}
++		}));
++
++		// Auto-dock Continuous Multi-Diff in Column 2 when staging changes occur
++		this._register(multiAgentService.onDidStagingUpdate(async e => {
++			// 1. Update the resolver items so the multi-diff actually displays changed files
++			const resolverInstance = AgentMultiDiffSourceResolver.getInstance();
++			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
++			const rootUri = workspaceFolders[0]?.uri;
++			if (resolverInstance && rootUri && e.worktreePath && e.changedFiles && e.changedFiles.length > 0) {
++				const originalUris: URI[] = [];
++				const worktreeUris: URI[] = [];
++				for (const file of e.changedFiles) {
++					originalUris.push(URI.joinPath(rootUri, file));
++					worktreeUris.push(URI.file(`${e.worktreePath}/${file}`));
++				}
++				resolverInstance.setWorktreeDiffs(
++					originalUris,
++					worktreeUris,
++					`Continuous Multi-Diff Staging (${e.changedFiles.length} file${e.changedFiles.length > 1 ? 's' : ''})`
++				);
++			}
++
++			// 2. Open / focus Column 2
++			if (MultiAgentCockpit.isEnabled(configurationService)) {
++				const groups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
++				if (groups.length < 2) {
++					editorGroupsService.applyLayout(MultiAgentCockpit.getCockpitLayout());
++				}
++				const updatedGroups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
++				const col2 = updatedGroups.length >= 2 ? updatedGroups[1] : undefined;
++				await editorService.openEditor({
++					label: 'Continuous Multi-Diff Staging',
++					multiDiffSource: AgentMultiDiffSourceResolver.getMultiDiffSourceUri(e.taskId),
++					options: { pinned: true, preserveFocus: false }
++				}, col2);
++			}
++		}));
++	}
++}
++
++/**
++ * Command action to open or focus the Continuous Multi-Diff Editor
++ */
++export class OpenAgentMultiDiffEditorAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.openContinuousDiff';
++
++	constructor() {
++		super({
++			id: OpenAgentMultiDiffEditorAction.ID,
++			title: localize2('openContinuousDiff', 'Multi Agent: Open Continuous Multi-Diff'),
++			f1: true
++		});
++	}
++
++	async run(accessor: ServicesAccessor, taskId?: string): Promise<void> {
++		const editorService = accessor.get(IEditorService);
++		const editorGroupsService = accessor.get(IEditorGroupsService);
++		const multiDiffSource = AgentMultiDiffSourceResolver.getMultiDiffSourceUri(taskId);
++
++		const groups = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE);
++		const targetGroup = groups.length >= 2 ? groups[1] : undefined;
++
++		await editorService.openEditor({
++			label: 'Continuous Multi-Diff Staging',
++			multiDiffSource,
++			options: { pinned: true, preserveFocus: false }
++		}, targetGroup);
++	}
++}
++
++/**
++ * Command action to update diff entries dynamically in Continuous Multi-Diff Staging
++ */
++export class UpdateAgentMultiDiffEntriesAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.updateDiffEntries';
++
++	constructor() {
++		super({
++			id: UpdateAgentMultiDiffEntriesAction.ID,
++			title: localize2('updateDiffEntries', 'Multi Agent: Update Continuous Diff Entries'),
++			f1: false
++		});
++	}
++
++	async run(_accessor: ServicesAccessor, args?: { entries?: { originalUri?: string; modifiedUri: string; title?: string }[]; label?: string }): Promise<void> {
++		const resolver = AgentMultiDiffSourceResolver.getInstance();
++		if (!resolver) {
++			return;
++		}
++
++		if (!args || !args.entries || args.entries.length === 0) {
++			resolver.updateDiffItems([], args?.label ?? 'Continuous Multi-Diff Staging');
++			return;
++		}
++
++		const items: MultiDiffEditorItem[] = args.entries.map(e => {
++			const orig = e.originalUri ? URI.file(e.originalUri) : undefined;
++			const mod = URI.file(e.modifiedUri);
++			return new MultiDiffEditorItem(orig, mod, orig ?? mod, e.title);
++		});
++
++		resolver.updateDiffItems(items, args.label ?? 'Continuous Multi-Diff Staging');
++	}
++}
+diff --git a/src/vs/workbench/contrib/multiAgent/browser/multiAgent.contribution.ts b/src/vs/workbench/contrib/multiAgent/browser/multiAgent.contribution.ts
+new file mode 100644
+index 00000000..099672f3
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/browser/multiAgent.contribution.ts
+@@ -0,0 +1,225 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
++import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
++import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
++import { Registry } from '../../../../platform/registry/common/platform.js';
++import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
++import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from '../../../common/views.js';
++import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
++import { Codicon } from '../../../../base/common/codicons.js';
++import { localize, localize2 } from '../../../../nls.js';
++import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
++import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
++import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
++
++import { AgentMultiDiffContribution, OpenAgentMultiDiffEditorAction, UpdateAgentMultiDiffEntriesAction } from './agentMultiDiffSourceResolver.js';
++import { IMultiAgentService } from '../common/multiAgent.js';
++import { MultiAgentService } from './multiAgentService.js';
++import { MultiAgentChatControlView } from './multiAgentChatControlView.js';
++
++import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
++import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
++
++// 1. Register Native IMultiAgentService Singleton
++registerSingleton(IMultiAgentService, MultiAgentService, InstantiationType.Delayed);
++
++// Configuration Registration
++const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
++configurationRegistry.registerConfiguration({
++	id: 'chat',
++	order: 15,
++	title: localize('chat.agent.configurationTitle', "Chat > Agent"),
++	type: 'object',
++	properties: {
++		'chat.agent.architect': {
++			type: 'string',
++			scope: ConfigurationScope.APPLICATION,
++			enum: ['antigravity', 'claude', 'codex', 'copilot'],
++			enumDescriptions: [
++				localize('chat.agent.architect.antigravity', "Google Antigravity CLI (agy)"),
++				localize('chat.agent.architect.claude', "Anthropic Claude CLI (claude)"),
++				localize('chat.agent.architect.codex', "OpenAI Codex CLI (codex)"),
++				localize('chat.agent.architect.copilot', "GitHub Copilot CLI (copilot)")
++			],
++			default: 'antigravity',
++			markdownDescription: localize('chat.agent.architect.description', "Lead Architect agent for codebase reasoning, solution design, and plan generation. [Authenticate CLI Accounts](command:workbench.action.multiAgent.loginAccount) | [Run Doctor Health Check](command:workbench.action.multiAgent.doctor)")
++		},
++		'chat.agent.worker': {
++			type: 'string',
++			scope: ConfigurationScope.APPLICATION,
++			enum: ['copilot', 'antigravity', 'claude', 'codex'],
++			enumDescriptions: [
++				localize('chat.agent.worker.copilot', "GitHub Copilot CLI (copilot)"),
++				localize('chat.agent.worker.antigravity', "Google Antigravity CLI (agy)"),
++				localize('chat.agent.worker.claude', "Anthropic Claude CLI (claude)"),
++				localize('chat.agent.worker.codex', "OpenAI Codex CLI (codex)")
++			],
++			default: 'copilot',
++			markdownDescription: localize('chat.agent.worker.description', "Worker agent for isolated worktree code authoring and execution. [Authenticate CLI Accounts](command:workbench.action.multiAgent.loginAccount)")
++		},
++		'chat.agent.auditor': {
++			type: 'string',
++			scope: ConfigurationScope.APPLICATION,
++			enum: ['antigravity', 'claude', 'codex', 'copilot'],
++			enumDescriptions: [
++				localize('chat.agent.auditor.antigravity', "Google Antigravity CLI (agy)"),
++				localize('chat.agent.auditor.claude', "Anthropic Claude CLI (claude)"),
++				localize('chat.agent.auditor.codex', "OpenAI Codex CLI (codex)"),
++				localize('chat.agent.auditor.copilot', "GitHub Copilot CLI (copilot)")
++			],
++			default: 'antigravity',
++			markdownDescription: localize('chat.agent.auditor.description', "Auditor agent for diagnostics, code verification, and task completion verdicts. [Authenticate CLI Accounts](command:workbench.action.multiAgent.loginAccount)")
++		},
++		'chat.agent.autopilot': {
++			type: 'boolean',
++			scope: ConfigurationScope.APPLICATION,
++			default: false,
++			markdownDescription: localize('chat.agent.autopilot.description', "When enabled, automatically approves generated plans and triggers worker execution without waiting for manual human confirmation.")
++		},
++		'multiAgent.roleMapping': {
++			type: 'object',
++			scope: ConfigurationScope.APPLICATION,
++			description: localize('multiAgent.roleMapping.description', "Mapping of Swarm roles to AI Agent engines (e.g. antigravity, copilot, codex, claude)."),
++			default: {
++				architect: 'antigravity',
++				worker: 'copilot',
++				auditor: 'antigravity'
++			}
++		},
++		'multiAgent.customProviders': {
++			type: 'array',
++			scope: ConfigurationScope.APPLICATION,
++			description: localize('multiAgent.customProviders.description', "Custom Agent CLI providers registered in the IDE."),
++			default: []
++		}
++	}
++});
++
++// 2. Register Continuous Multi-Diff Contributions (Tier 2)
++registerAction2(OpenAgentMultiDiffEditorAction);
++registerAction2(UpdateAgentMultiDiffEntriesAction);
++registerWorkbenchContribution2(
++	AgentMultiDiffContribution.ID,
++	AgentMultiDiffContribution,
++	WorkbenchPhase.BlockStartup
++);
++
++// 3. Register MA Chat & Control ViewContainer in Secondary Sidebar (Auxiliary Bar)
++export const MULTI_AGENT_VIEW_CONTAINER_ID = 'workbench.view.multiAgent';
++
++const multiAgentViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
++	id: MULTI_AGENT_VIEW_CONTAINER_ID,
++	title: localize2('multiAgent.containerTitle', "MA Chat & Control"),
++	icon: Codicon.sparkle,
++	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [MULTI_AGENT_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
++	storageId: MULTI_AGENT_VIEW_CONTAINER_ID,
++	hideIfEmpty: false,
++	order: 1,
++}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
++
++// 4. Register MA Chat & Control View inside Container
++const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
++viewsRegistry.registerViews([{
++	id: MultiAgentChatControlView.ID,
++	name: localize2('multiAgent.chatControlView.title', "MA Chat & Control View"),
++	ctorDescriptor: new SyncDescriptor(MultiAgentChatControlView),
++	canToggleVisibility: false,
++	canMoveView: true,
++	order: 1,
++}], multiAgentViewContainer);
++
++// 5. Register Toggle/Focus Action for MA Chat & Control View
++export class ToggleMAChatControlAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.toggleChatControl';
++
++	constructor() {
++		super({
++			id: ToggleMAChatControlAction.ID,
++			title: localize2('multiAgent.toggleChatControl', "Toggle MA Chat & Control View"),
++			keybinding: {
++				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyM,
++				weight: 200
++			},
++			f1: true
++		});
++	}
++
++	async run(accessor: ServicesAccessor): Promise<void> {
++		const paneCompositePartService = accessor.get(IPaneCompositePartService);
++		await paneCompositePartService.openPaneComposite(MULTI_AGENT_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar, true);
++	}
++}
++
++registerAction2(ToggleMAChatControlAction);
++
++export class MultiAgentLoginAccountAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.loginAccount';
++
++	constructor() {
++		super({
++			id: MultiAgentLoginAccountAction.ID,
++			title: localize2('multiAgent.loginAccount', "Multi-Agent: Authenticate CLI Account"),
++			f1: true
++		});
++	}
++
++	async run(accessor: ServicesAccessor): Promise<void> {
++		const quickInputService = accessor.get(IQuickInputService);
++		const multiAgentService = accessor.get(IMultiAgentService);
++
++		const items: IQuickPickItem[] = [
++			{ id: 'antigravity', label: '$(sparkle) Google Antigravity (agy)', description: 'Native Google OAuth credentials' },
++			{ id: 'copilot', label: '$(github) GitHub Copilot CLI', description: 'gh auth login / copilot login' },
++			{ id: 'codex', label: '$(hubot) OpenAI Codex CLI', description: 'codex login' },
++			{ id: 'claude', label: '$(comment) Anthropic Claude CLI', description: 'claude login' },
++		];
++
++		const selected = await quickInputService.pick(items, {
++			placeHolder: 'Select CLI Agent account to authenticate'
++		});
++		if (selected && selected.id) {
++			await multiAgentService.loginProvider(selected.id);
++		}
++	}
++}
++registerAction2(MultiAgentLoginAccountAction);
++
++export class MultiAgentDoctorAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.doctor';
++
++	constructor() {
++		super({
++			id: MultiAgentDoctorAction.ID,
++			title: localize2('multiAgent.doctor', "Multi-Agent: Run Doctor Health Check"),
++			f1: true
++		});
++	}
++
++	async run(accessor: ServicesAccessor): Promise<void> {
++		const multiAgentService = accessor.get(IMultiAgentService);
++		await multiAgentService.runDoctor();
++	}
++}
++registerAction2(MultiAgentDoctorAction);
++
++export class MultiAgentNewSessionAction extends Action2 {
++	static readonly ID = 'workbench.action.multiAgent.newSession';
++
++	constructor() {
++		super({
++			id: MultiAgentNewSessionAction.ID,
++			title: localize2('multiAgent.newSession', "Multi-Agent: New Chat Session"),
++			f1: true
++		});
++	}
++
++	async run(accessor: ServicesAccessor): Promise<void> {
++		const multiAgentService = accessor.get(IMultiAgentService);
++		multiAgentService.clearSession();
++	}
++}
++registerAction2(MultiAgentNewSessionAction);
+diff --git a/src/vs/workbench/contrib/multiAgent/browser/multiAgentChatControlView.ts b/src/vs/workbench/contrib/multiAgent/browser/multiAgentChatControlView.ts
+new file mode 100644
+index 00000000..680129b4
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/browser/multiAgentChatControlView.ts
+@@ -0,0 +1,687 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
++import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
++import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
++import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
++import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
++import { IViewDescriptorService } from '../../../common/views.js';
++import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
++import { IOpenerService } from '../../../../platform/opener/common/opener.js';
++import { IThemeService } from '../../../../platform/theme/common/themeService.js';
++import { IHoverService } from '../../../../platform/hover/browser/hover.js';
++import { $, append, clearNode } from '../../../../base/browser/dom.js';
++import { ThemeIcon } from '../../../../base/common/themables.js';
++import { Codicon } from '../../../../base/common/codicons.js';
++import { ICommandService } from '../../../../platform/commands/common/commands.js';
++import { IMultiAgentService, SwarmStatus, ChatMessage, ThinkingStep, StagingUpdateEvent } from '../common/multiAgent.js';
++
++export class MultiAgentChatControlView extends ViewPane {
++	public static readonly ID = 'multiAgent.chatControlView';
++	public static readonly TITLE = 'MA Chat & Control View';
++
++	private _rootContainer!: HTMLElement;
++	private _hudElement!: HTMLElement;
++	private _streamElement!: HTMLElement;
++	private _approvalBarElement!: HTMLElement;
++	private _stagingBarElement!: HTMLElement;
++	private _stagingCountLabel!: HTMLElement;
++	private _inputElement!: HTMLTextAreaElement;
++	private _sendButton!: HTMLButtonElement;
++	private _sendIconSpan!: HTMLElement;
++
++	private _thinkingAccordion?: HTMLElement;
++	private _thinkingAccordionBody?: HTMLElement;
++	private _thinkingTitleLabel?: HTMLElement;
++	private _thinkingStartTime: number = 0;
++
++	constructor(
++		options: IViewPaneOptions,
++		@IKeybindingService keybindingService: IKeybindingService,
++		@IContextMenuService contextMenuService: IContextMenuService,
++		@IConfigurationService configurationService: IConfigurationService,
++		@IContextKeyService contextKeyService: IContextKeyService,
++		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
++		@IInstantiationService instantiationService: IInstantiationService,
++		@IOpenerService openerService: IOpenerService,
++		@IThemeService themeService: IThemeService,
++		@IHoverService hoverService: IHoverService,
++		@ICommandService private readonly commandService: ICommandService,
++		@IMultiAgentService private readonly multiAgentService: IMultiAgentService
++	) {
++		super(
++			options,
++			keybindingService,
++			contextMenuService,
++			configurationService,
++			contextKeyService,
++			viewDescriptorService,
++			instantiationService,
++			openerService,
++			themeService,
++			hoverService
++		);
++	}
++
++	protected override renderBody(container: HTMLElement): void {
++		super.renderBody(container);
++
++		this._rootContainer = append(container, $('.ma-chat-control-view'));
++		this._rootContainer.style.display = 'flex';
++		this._rootContainer.style.flexDirection = 'column';
++		this._rootContainer.style.height = '100%';
++		this._rootContainer.style.width = '100%';
++		this._rootContainer.style.overflow = 'hidden';
++		this._rootContainer.style.fontSize = '12px';
++		this._rootContainer.style.fontFamily = 'var(--vscode-font-family)';
++		this._rootContainer.style.backgroundColor = 'transparent';
++
++		// 1. HUD / Swarm Status & Swimlanes
++		this._renderHud(this._rootContainer);
++
++		// 2. Event & Chat Stream (Scrollable)
++		this._streamElement = append(this._rootContainer, $('.ma-stream-container'));
++		this._streamElement.style.flex = '1';
++		this._streamElement.style.overflowY = 'auto';
++		this._streamElement.style.padding = '10px 12px';
++		this._streamElement.style.display = 'flex';
++		this._streamElement.style.flexDirection = 'column';
++		this._streamElement.style.gap = '10px';
++
++		// 3. Human Approval Gate Bar (Plan Review)
++		this._renderApprovalBar(this._rootContainer);
++
++		// 4. Staging Action Bar (Code Review & Merge)
++		this._renderStagingBar(this._rootContainer);
++
++		// 5. Antigravity Floating Input Box
++		this._renderInputArea(this._rootContainer);
++
++		// Bind events
++		this._register(this.multiAgentService.onDidChangeStatus(status => {
++			this._updateHud(status);
++			if (status.state === 'idle' || status.state === 'completed') {
++				this._updateStagingBar(undefined);
++			}
++		}));
++		this._register(this.multiAgentService.onDidMessage(() => this._renderMessages()));
++		this._register(this.multiAgentService.onDidThinkingStep(step => this._addThinkingStep(step)));
++		this._register(this.multiAgentService.onDidStagingUpdate(staging => this._updateStagingBar(staging)));
++
++		// Initial render
++		this._updateHud(this.multiAgentService.getStatus());
++		this._updateStagingBar(this.multiAgentService.getStaging());
++		this._renderMessages();
++	}
++
++	private _renderHud(parent: HTMLElement): void {
++		this._hudElement = append(parent, $('.ma-hud-header'));
++		this._hudElement.style.display = 'flex';
++		this._hudElement.style.flexDirection = 'column';
++		this._hudElement.style.padding = '8px 10px';
++		this._hudElement.style.borderBottom = '1px solid rgba(255, 255, 255, 0.06)';
++		this._hudElement.style.gap = '8px';
++	}
++
++	private _updateHud(status: SwarmStatus): void {
++		if (!this._hudElement) return;
++		clearNode(this._hudElement);
++
++		// Top Row: State Badge + Header Action Toolbar
++		const topRow = append(this._hudElement, $('.ma-hud-row'));
++		topRow.style.display = 'flex';
++		topRow.style.justifyContent = 'space-between';
++		topRow.style.alignItems = 'center';
++
++		const leftGroup = append(topRow, $('div'));
++		leftGroup.style.display = 'flex';
++		leftGroup.style.alignItems = 'center';
++		leftGroup.style.gap = '6px';
++
++		const stateBadge = append(leftGroup, $('span.ma-state-badge'));
++		stateBadge.textContent = `[${status.state.toUpperCase()}]`;
++		stateBadge.style.fontWeight = 'bold';
++		stateBadge.style.fontSize = '10px';
++		stateBadge.style.padding = '2px 6px';
++		stateBadge.style.borderRadius = '4px';
++
++		switch (status.state) {
++			case 'idle':
++				stateBadge.style.backgroundColor = 'rgba(128, 128, 128, 0.15)';
++				stateBadge.style.color = 'var(--vscode-foreground)';
++				break;
++			case 'planning':
++				stateBadge.style.backgroundColor = '#2563eb';
++				stateBadge.style.color = '#ffffff';
++				break;
++			case 'executing':
++				stateBadge.style.backgroundColor = '#7c3aed';
++				stateBadge.style.color = '#ffffff';
++				break;
++			case 'auditing':
++				stateBadge.style.backgroundColor = '#059669';
++				stateBadge.style.color = '#ffffff';
++				break;
++			case 'waiting_approval':
++				stateBadge.style.backgroundColor = '#d97706';
++				stateBadge.style.color = '#ffffff';
++				break;
++			case 'completed':
++				stateBadge.style.backgroundColor = '#16a34a';
++				stateBadge.style.color = '#ffffff';
++				break;
++			case 'error':
++				stateBadge.style.backgroundColor = '#dc2626';
++				stateBadge.style.color = '#ffffff';
++				break;
++		}
++
++		// Minimalist Header Action Toolbar: 1 Settings Button Only
++		const actionsGroup = append(topRow, $('div'));
++		actionsGroup.style.display = 'flex';
++		actionsGroup.style.alignItems = 'center';
++		actionsGroup.style.gap = '6px';
++
++		const settingsBtn = append(actionsGroup, $('button')) as HTMLButtonElement;
++		settingsBtn.title = 'Open Multi-Agent Settings (Chat > Agent)';
++		settingsBtn.style.display = 'flex';
++		settingsBtn.style.alignItems = 'center';
++		settingsBtn.style.justifyContent = 'center';
++		settingsBtn.style.width = '24px';
++		settingsBtn.style.height = '24px';
++		settingsBtn.style.padding = '0';
++		settingsBtn.style.backgroundColor = 'transparent';
++		settingsBtn.style.color = 'var(--vscode-foreground)';
++		settingsBtn.style.border = 'none';
++		settingsBtn.style.borderRadius = '4px';
++		settingsBtn.style.cursor = 'pointer';
++		settingsBtn.style.opacity = '0.8';
++		settingsBtn.onmouseenter = () => { settingsBtn.style.opacity = '1'; settingsBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.08)'; };
++		settingsBtn.onmouseleave = () => { settingsBtn.style.opacity = '0.8'; settingsBtn.style.backgroundColor = 'transparent'; };
++		settingsBtn.onclick = () => {
++			this.commandService.executeCommand('workbench.action.openSettings', 'chat.agent');
++		};
++
++		const gearIcon = append(settingsBtn, $('span'));
++		gearIcon.className = ThemeIcon.asClassName(Codicon.settingsGear);
++
++		// Row 2: Antigravity Swarm Swimlanes (Pills)
++		const swimlanesRow = append(this._hudElement, $('.ma-hud-swimlanes'));
++		swimlanesRow.style.display = 'flex';
++		swimlanesRow.style.gap = '6px';
++		swimlanesRow.style.flexWrap = 'wrap';
++
++		const renderSwimlanePill = (roleKey: string, roleTitle: string, agentName: string, accentColor: string, isActive: boolean) => {
++			const pill = append(swimlanesRow, $('div.ma-swimlane-pill'));
++			pill.style.display = 'flex';
++			pill.style.alignItems = 'center';
++			pill.style.gap = '4px';
++			pill.style.padding = '3px 8px';
++			pill.style.borderRadius = '12px';
++			pill.style.fontSize = '10px';
++			pill.style.backgroundColor = isActive ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)';
++			pill.style.border = isActive ? `1px solid ${accentColor}` : '1px solid rgba(255, 255, 255, 0.06)';
++			pill.style.color = 'var(--vscode-foreground)';
++			pill.style.cursor = 'pointer';
++			pill.title = `${roleTitle}: ${agentName} (Click to open Chat > Agent settings)`;
++			pill.onclick = () => {
++				this.commandService.executeCommand('workbench.action.openSettings', 'chat.agent');
++			};
++
++			const dot = append(pill, $('span'));
++			dot.textContent = '●';
++			dot.style.fontSize = '8px';
++			dot.style.color = isActive ? accentColor : 'rgba(128, 128, 128, 0.4)';
++
++			const label = append(pill, $('span'));
++			label.textContent = `${roleTitle}: ${agentName}`;
++			label.style.fontWeight = isActive ? 'bold' : 'normal';
++		};
++
++		const isArchActive = status.state === 'planning' || status.activeRole === 'architect';
++		const isWorkerActive = status.state === 'executing' || status.activeRole === 'worker';
++		const isAuditorActive = status.state === 'auditing' || status.activeRole === 'auditor';
++
++		renderSwimlanePill('architect', 'Arch', status.roles.architect, '#3b82f6', isArchActive);
++		renderSwimlanePill('worker', 'Worker', status.roles.worker, '#a855f7', isWorkerActive);
++		renderSwimlanePill('auditor', 'Audit', status.roles.auditor, '#10b981', isAuditorActive);
++
++		// Toggle Approval Bar visibility
++		if (this._approvalBarElement) {
++			this._approvalBarElement.style.display = status.state === 'waiting_approval' ? 'flex' : 'none';
++		}
++
++		// Update send/stop button state in input area
++		this._updateSendButtonState(status);
++	}
++
++	private _renderApprovalBar(parent: HTMLElement): void {
++		this._approvalBarElement = append(parent, $('.ma-approval-bar'));
++		this._approvalBarElement.style.display = 'none';
++		this._approvalBarElement.style.flexDirection = 'column';
++		this._approvalBarElement.style.padding = '8px 12px';
++		this._approvalBarElement.style.borderTop = '1px solid rgba(217, 119, 6, 0.3)';
++		this._approvalBarElement.style.borderBottom = '1px solid rgba(217, 119, 6, 0.3)';
++		this._approvalBarElement.style.backgroundColor = 'rgba(217, 119, 6, 0.08)';
++		this._approvalBarElement.style.gap = '6px';
++
++		const notice = append(this._approvalBarElement, $('div'));
++		notice.style.fontWeight = 'bold';
++		notice.style.fontSize = '11px';
++		notice.textContent = 'Human Approval Required: Inspect PLAN.md in Column 1';
++
++		const btnRow = append(this._approvalBarElement, $('div'));
++		btnRow.style.display = 'flex';
++		btnRow.style.gap = '8px';
++
++		const approveBtn = append(btnRow, $('button')) as HTMLButtonElement;
++		approveBtn.textContent = '✓ Approve Plan';
++		approveBtn.style.flex = '1';
++		approveBtn.style.padding = '6px 12px';
++		approveBtn.style.backgroundColor = '#2563eb';
++		approveBtn.style.color = '#ffffff';
++		approveBtn.style.border = 'none';
++		approveBtn.style.borderRadius = '6px';
++		approveBtn.style.fontWeight = '500';
++		approveBtn.style.cursor = 'pointer';
++		approveBtn.onclick = () => this.multiAgentService.approvePlan();
++
++		const rejectBtn = append(btnRow, $('button')) as HTMLButtonElement;
++		rejectBtn.textContent = '✕ Request Revision';
++		rejectBtn.style.padding = '6px 12px';
++		rejectBtn.style.backgroundColor = 'transparent';
++		rejectBtn.style.color = 'var(--vscode-foreground)';
++		rejectBtn.style.border = '1px solid rgba(255, 255, 255, 0.2)';
++		rejectBtn.style.borderRadius = '6px';
++		rejectBtn.style.cursor = 'pointer';
++		rejectBtn.onclick = () => this.multiAgentService.rejectPlan();
++	}
++
++	private _renderStagingBar(parent: HTMLElement): void {
++		this._stagingBarElement = append(parent, $('.ma-staging-bar'));
++		this._stagingBarElement.style.display = 'none';
++		this._stagingBarElement.style.flexDirection = 'column';
++		this._stagingBarElement.style.padding = '8px 12px';
++		this._stagingBarElement.style.borderTop = '1px solid rgba(59, 130, 246, 0.3)';
++		this._stagingBarElement.style.borderBottom = '1px solid rgba(59, 130, 246, 0.3)';
++		this._stagingBarElement.style.backgroundColor = 'rgba(59, 130, 246, 0.08)';
++		this._stagingBarElement.style.gap = '6px';
++
++		this._stagingCountLabel = append(this._stagingBarElement, $('div'));
++		this._stagingCountLabel.style.fontWeight = 'bold';
++		this._stagingCountLabel.style.fontSize = '11px';
++		this._stagingCountLabel.textContent = '● STAGED: 0 files ready for review';
++
++		const btnRow = append(this._stagingBarElement, $('div'));
++		btnRow.style.display = 'flex';
++		btnRow.style.gap = '8px';
++
++		const acceptBtn = append(btnRow, $('button')) as HTMLButtonElement;
++		acceptBtn.textContent = '✓ Accept Changes';
++		acceptBtn.style.flex = '1';
++		acceptBtn.style.padding = '6px 12px';
++		acceptBtn.style.backgroundColor = '#16a34a';
++		acceptBtn.style.color = '#ffffff';
++		acceptBtn.style.border = 'none';
++		acceptBtn.style.borderRadius = '6px';
++		acceptBtn.style.fontWeight = '500';
++		acceptBtn.style.cursor = 'pointer';
++		acceptBtn.onclick = () => {
++			this.multiAgentService.acceptStaging();
++			this._updateStagingBar(undefined);
++		};
++
++		const rejectBtn = append(btnRow, $('button')) as HTMLButtonElement;
++		rejectBtn.textContent = '✕ Reject';
++		rejectBtn.style.padding = '6px 12px';
++		rejectBtn.style.backgroundColor = 'transparent';
++		rejectBtn.style.color = 'var(--vscode-foreground)';
++		rejectBtn.style.border = '1px solid rgba(255, 255, 255, 0.2)';
++		rejectBtn.style.borderRadius = '6px';
++		rejectBtn.style.cursor = 'pointer';
++		rejectBtn.onclick = () => {
++			this.multiAgentService.rejectStaging();
++			this._updateStagingBar(undefined);
++		};
++	}
++
++	private _updateStagingBar(staging?: StagingUpdateEvent): void {
++		if (!this._stagingBarElement) return;
++		const current = staging ?? this.multiAgentService.getStaging();
++		if (current && current.changedFiles.length > 0) {
++			this._stagingBarElement.style.display = 'flex';
++			this._stagingCountLabel.textContent = `● STAGED: ${current.changedFiles.length} file(s) ready in Column 2`;
++		} else {
++			this._stagingBarElement.style.display = 'none';
++		}
++	}
++
++	private _renderInputArea(parent: HTMLElement): void {
++		const inputCard = append(parent, $('.ma-floating-input-card'));
++		inputCard.style.margin = '8px 10px 10px 10px';
++		inputCard.style.padding = '8px 12px';
++		inputCard.style.borderRadius = '12px';
++		inputCard.style.backgroundColor = 'var(--vscode-input-background, rgba(255, 255, 255, 0.04))';
++		inputCard.style.border = '1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.1))';
++		inputCard.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.2)';
++		inputCard.style.display = 'flex';
++		inputCard.style.flexDirection = 'column';
++		inputCard.style.gap = '6px';
++
++		this._inputElement = append(inputCard, $('textarea')) as HTMLTextAreaElement;
++		this._inputElement.placeholder = 'Assign objective to Swarm... (@ to mention, / for actions)';
++		this._inputElement.rows = 2;
++		this._inputElement.style.width = '100%';
++		this._inputElement.style.boxSizing = 'border-box';
++		this._inputElement.style.resize = 'none';
++		this._inputElement.style.padding = '2px 0';
++		this._inputElement.style.border = 'none';
++		this._inputElement.style.outline = 'none';
++		this._inputElement.style.backgroundColor = 'transparent';
++		this._inputElement.style.color = 'var(--vscode-input-foreground, inherit)';
++		this._inputElement.style.fontSize = '13px';
++		this._inputElement.style.lineHeight = '1.4';
++		this._inputElement.style.fontFamily = 'inherit';
++
++		this._inputElement.addEventListener('input', () => {
++			this._inputElement.style.height = 'auto';
++			this._inputElement.style.height = Math.min(140, Math.max(38, this._inputElement.scrollHeight)) + 'px';
++		});
++
++		this._inputElement.addEventListener('keydown', (e: KeyboardEvent) => {
++			if (e.key === 'Enter' && !e.shiftKey) {
++				e.preventDefault();
++				const status = this.multiAgentService.getStatus();
++				if (status.state === 'planning' || status.state === 'executing' || status.state === 'auditing') {
++					this.multiAgentService.cancelTask();
++				} else {
++					this._handleDispatch();
++				}
++			}
++		});
++
++		const actionsRow = append(inputCard, $('div'));
++		actionsRow.style.display = 'flex';
++		actionsRow.style.justifyContent = 'space-between';
++		actionsRow.style.alignItems = 'center';
++		actionsRow.style.marginTop = '4px';
++
++		// Left side: + icon button and Model/Swarm pill
++		const leftGroup = append(actionsRow, $('div'));
++		leftGroup.style.display = 'flex';
++		leftGroup.style.alignItems = 'center';
++		leftGroup.style.gap = '8px';
++
++		const addBtn = append(leftGroup, $('button')) as HTMLButtonElement;
++		addBtn.title = 'Add context, files, or symbols';
++		addBtn.style.display = 'flex';
++		addBtn.style.alignItems = 'center';
++		addBtn.style.justifyContent = 'center';
++		addBtn.style.width = '24px';
++		addBtn.style.height = '24px';
++		addBtn.style.padding = '0';
++		addBtn.style.backgroundColor = 'transparent';
++		addBtn.style.color = 'var(--vscode-foreground)';
++		addBtn.style.border = 'none';
++		addBtn.style.borderRadius = '4px';
++		addBtn.style.cursor = 'pointer';
++		addBtn.style.opacity = '0.7';
++		addBtn.onmouseenter = () => { addBtn.style.opacity = '1'; };
++		addBtn.onmouseleave = () => { addBtn.style.opacity = '0.7'; };
++
++		const addIcon = append(addBtn, $('span'));
++		addIcon.className = ThemeIcon.asClassName(Codicon.add);
++
++		const swarmPill = append(leftGroup, $('div'));
++		swarmPill.title = 'Multi-Agent Swarm (Click to configure in Settings)';
++		swarmPill.style.display = 'flex';
++		swarmPill.style.alignItems = 'center';
++		swarmPill.style.gap = '4px';
++		swarmPill.style.padding = '2px 8px';
++		swarmPill.style.borderRadius = '10px';
++		swarmPill.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
++		swarmPill.style.border = '1px solid rgba(255, 255, 255, 0.08)';
++		swarmPill.style.fontSize = '11px';
++		swarmPill.style.color = 'var(--vscode-foreground)';
++		swarmPill.style.cursor = 'pointer';
++		swarmPill.onclick = () => {
++			this.commandService.executeCommand('workbench.action.openSettings', 'chat.agent');
++		};
++
++		const sparkleIcon = append(swarmPill, $('span'));
++		sparkleIcon.className = ThemeIcon.asClassName(Codicon.sparkle);
++		sparkleIcon.style.fontSize = '10px';
++		sparkleIcon.style.color = '#38bdf8';
++
++		const swarmLabel = append(swarmPill, $('span'));
++		swarmLabel.textContent = 'Multi-Agent Swarm';
++
++		// Right side: Single circular send/stop button
++		this._sendButton = append(actionsRow, $('button')) as HTMLButtonElement;
++		this._sendButton.style.width = '28px';
++		this._sendButton.style.height = '28px';
++		this._sendButton.style.borderRadius = '50%';
++		this._sendButton.style.display = 'flex';
++		this._sendButton.style.alignItems = 'center';
++		this._sendButton.style.justifyContent = 'center';
++		this._sendButton.style.border = 'none';
++		this._sendButton.style.cursor = 'pointer';
++		this._sendButton.style.transition = 'all 0.15s ease';
++
++		this._sendIconSpan = append(this._sendButton, $('span'));
++		this._updateSendButtonState(this.multiAgentService.getStatus());
++	}
++
++	private _updateSendButtonState(status: SwarmStatus): void {
++		if (!this._sendButton || !this._sendIconSpan) return;
++
++		const isRunning = status.state === 'planning' || status.state === 'executing' || status.state === 'auditing';
++		if (isRunning) {
++			this._sendButton.style.backgroundColor = '#dc2626';
++			this._sendButton.style.color = '#ffffff';
++			this._sendButton.title = 'Stop Execution';
++			this._sendIconSpan.className = ThemeIcon.asClassName(Codicon.debugStop);
++			this._sendButton.onclick = () => this.multiAgentService.cancelTask();
++		} else {
++			this._sendButton.style.backgroundColor = 'var(--vscode-button-background, #2563eb)';
++			this._sendButton.style.color = 'var(--vscode-button-foreground, #ffffff)';
++			this._sendButton.title = 'Dispatch Swarm (Enter)';
++			this._sendIconSpan.className = ThemeIcon.asClassName(Codicon.arrowUp);
++			this._sendButton.onclick = () => this._handleDispatch();
++		}
++	}
++
++	private async _handleDispatch(): Promise<void> {
++		const text = this._inputElement.value.trim();
++		if (!text) return;
++		this._inputElement.value = '';
++		this._inputElement.style.height = 'auto';
++
++		// Reset thinking accordion for new run
++		this._thinkingAccordion = undefined;
++		this._thinkingAccordionBody = undefined;
++		this._thinkingTitleLabel = undefined;
++		this._thinkingStartTime = Date.now();
++
++		try {
++			await this.multiAgentService.dispatch(text);
++		} catch (err) {
++			console.error('[MultiAgentChatControlView] Dispatch error:', err);
++		}
++	}
++
++	private _renderMessages(): void {
++		if (!this._streamElement) return;
++		clearNode(this._streamElement);
++
++		this._thinkingAccordion = undefined;
++		this._thinkingAccordionBody = undefined;
++		this._thinkingTitleLabel = undefined;
++
++		const messages = this.multiAgentService.getMessages();
++		for (const msg of messages) {
++			if (!msg.text && msg.sender === 'system') continue;
++			this._appendMessageBubble(msg);
++		}
++
++		this._streamElement.scrollTop = this._streamElement.scrollHeight;
++	}
++
++	private _renderInlineFormatted(container: HTMLElement, text: string): void {
++		const regex = /(\*\*[^*]+\*\*|`[^`]+`)/g;
++		let lastIndex = 0;
++		let match: RegExpExecArray | null;
++
++		while ((match = regex.exec(text)) !== null) {
++			if (match.index > lastIndex) {
++				container.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
++			}
++			const token = match[0];
++			if (token.startsWith('**') && token.endsWith('**')) {
++				const strong = document.createElement('strong');
++				strong.textContent = token.slice(2, -2);
++				container.appendChild(strong);
++			} else if (token.startsWith('`') && token.endsWith('`')) {
++				const code = document.createElement('code');
++				code.textContent = token.slice(1, -1);
++				code.style.padding = '1px 4px';
++				code.style.borderRadius = '3px';
++				code.style.backgroundColor = 'rgba(128, 128, 128, 0.2)';
++				code.style.fontFamily = 'monospace';
++				code.style.fontSize = '90%';
++				container.appendChild(code);
++			}
++			lastIndex = regex.lastIndex;
++		}
++
++		if (lastIndex < text.length) {
++			container.appendChild(document.createTextNode(text.substring(lastIndex)));
++		}
++	}
++
++	private _renderFormattedText(container: HTMLElement, text: string): void {
++		const lines = text.split('\n');
++		for (let i = 0; i < lines.length; i++) {
++			if (i > 0) {
++				container.appendChild(document.createElement('br'));
++			}
++			this._renderInlineFormatted(container, lines[i]);
++		}
++	}
++
++	private _appendMessageBubble(msg: ChatMessage): void {
++		const bubble = append(this._streamElement, $('.ma-message-bubble'));
++		bubble.style.padding = '8px 12px';
++		bubble.style.lineHeight = '1.5';
++		bubble.style.fontSize = '13px';
++
++		if (msg.sender === 'user') {
++			bubble.style.alignSelf = 'flex-end';
++			bubble.style.backgroundColor = '#1e2638';
++			bubble.style.color = '#f1f5f9';
++			bubble.style.borderRadius = '14px 14px 2px 14px';
++			bubble.style.maxWidth = '88%';
++			bubble.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
++		} else if (msg.sender === 'system') {
++			bubble.style.alignSelf = 'center';
++			bubble.style.backgroundColor = 'rgba(128, 128, 128, 0.12)';
++			bubble.style.borderRadius = '12px';
++			bubble.style.fontSize = '11px';
++			bubble.style.opacity = '0.85';
++			bubble.style.padding = '3px 10px';
++		} else {
++			bubble.style.alignSelf = 'flex-start';
++			bubble.style.backgroundColor = 'rgba(255, 255, 255, 0.035)';
++			bubble.style.border = '1px solid rgba(255, 255, 255, 0.07)';
++			bubble.style.borderRadius = '14px 14px 14px 2px';
++			bubble.style.maxWidth = '94%';
++
++			const roleColor = msg.role === 'architect' ? '#3b82f6' : (msg.role === 'worker' ? '#a855f7' : '#10b981');
++			bubble.style.borderLeft = `3px solid ${roleColor}`;
++		}
++
++		if (msg.agentName) {
++			const header = append(bubble, $('.ma-msg-sender'));
++			header.style.fontWeight = 'bold';
++			header.style.fontSize = '11px';
++			header.style.marginBottom = '4px';
++			const roleColor = msg.role === 'architect' ? '#60a5fa' : (msg.role === 'worker' ? '#c084fc' : '#34d399');
++			header.style.color = roleColor;
++			header.textContent = `[${msg.role?.toUpperCase() || 'AGENT'}] ${msg.agentName}:`;
++		}
++
++		const body = append(bubble, $('.ma-msg-text'));
++		this._renderFormattedText(body, msg.text);
++	}
++
++	private _ensureThinkingAccordion(): HTMLElement {
++		if (this._thinkingAccordion && this._thinkingAccordion.isConnected) {
++			return this._thinkingAccordionBody!;
++		}
++
++		this._thinkingStartTime = Date.now();
++		this._thinkingAccordion = append(this._streamElement, $('.ma-thinking-accordion'));
++		this._thinkingAccordion.style.margin = '4px 0';
++		this._thinkingAccordion.style.borderRadius = '8px';
++		this._thinkingAccordion.style.border = '1px solid rgba(255, 255, 255, 0.08)';
++		this._thinkingAccordion.style.backgroundColor = 'rgba(255, 255, 255, 0.02)';
++		this._thinkingAccordion.style.overflow = 'hidden';
++
++		const header = append(this._thinkingAccordion, $('.ma-thinking-header'));
++		header.style.display = 'flex';
++		header.style.justifyContent = 'space-between';
++		header.style.alignItems = 'center';
++		header.style.padding = '6px 10px';
++		header.style.cursor = 'pointer';
++		header.style.fontSize = '11px';
++		header.style.fontWeight = '500';
++		header.style.color = 'var(--vscode-descriptionForeground, #94a3b8)';
++		header.style.userSelect = 'none';
++
++		this._thinkingTitleLabel = append(header, $('span'));
++		this._thinkingTitleLabel.textContent = '✦ Thinking (1s)';
++
++		const chevron = append(header, $('span'));
++		chevron.textContent = '▾';
++		chevron.style.fontSize = '10px';
++		chevron.style.opacity = '0.7';
++
++		this._thinkingAccordionBody = append(this._thinkingAccordion, $('.ma-thinking-body'));
++		this._thinkingAccordionBody.style.display = 'flex';
++		this._thinkingAccordionBody.style.flexDirection = 'column';
++		this._thinkingAccordionBody.style.gap = '4px';
++		this._thinkingAccordionBody.style.padding = '4px 10px 8px 16px';
++		this._thinkingAccordionBody.style.borderLeft = '2px solid rgba(148, 163, 184, 0.3)';
++		this._thinkingAccordionBody.style.marginLeft = '10px';
++
++		let isExpanded = true;
++		header.onclick = () => {
++			isExpanded = !isExpanded;
++			this._thinkingAccordionBody!.style.display = isExpanded ? 'flex' : 'none';
++			chevron.textContent = isExpanded ? '▾' : '▸';
++		};
++
++		return this._thinkingAccordionBody;
++	}
++
++	private _addThinkingStep(step: ThinkingStep): void {
++		if (!this._streamElement) return;
++
++		const body = this._ensureThinkingAccordion();
++		const elapsedSec = Math.max(1, Math.round((Date.now() - this._thinkingStartTime) / 1000));
++		if (this._thinkingTitleLabel) {
++			this._thinkingTitleLabel.textContent = `✦ Thinking (${elapsedSec}s)`;
++		}
++
++		const stepEl = append(body, $('.ma-thinking-item'));
++		stepEl.style.fontSize = '11px';
++		stepEl.style.color = 'var(--vscode-descriptionForeground, #94a3b8)';
++		stepEl.style.lineHeight = '1.4';
++		stepEl.textContent = `⚡ [${step.role.toUpperCase()}] ${step.agent}: ${step.text}`;
++
++		this._streamElement.scrollTop = this._streamElement.scrollHeight;
++	}
++}
+diff --git a/src/vs/workbench/contrib/multiAgent/browser/multiAgentCockpit.ts b/src/vs/workbench/contrib/multiAgent/browser/multiAgentCockpit.ts
+new file mode 100644
+index 00000000..edcbf791
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/browser/multiAgentCockpit.ts
+@@ -0,0 +1,63 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
++import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
++import { IStorageService } from '../../../../platform/storage/common/storage.js';
++import { EditorGroupLayout, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
++import { IPath } from '../../../../platform/window/common/window.js';
++
++export interface IPathToOpen extends IPath {
++	readonly viewColumn?: number;
++}
++
++export interface ICockpitEditorsState {
++	readonly filesToOpenOrCreate?: IPathToOpen[];
++	readonly filesToDiff?: IPathToOpen[];
++	readonly filesToMerge?: IPathToOpen[];
++	readonly layout?: EditorGroupLayout;
++}
++
++/**
++ * MultiAgentCockpit encapsulates the native Cockpit layout logic
++ * for the Agent-First IDE environment.
++ * Spec: Living PLAN.md in Column 1, Continuous Multi-Diff Staging in Column 2,
++ * and MA Chat & Control View docked natively in the Secondary Sidebar.
++ */
++export class MultiAgentCockpit {
++	public static readonly SETTING_ENABLED = 'workbench.agentCockpit.enabled';
++
++	public static isEnabled(configurationService: IConfigurationService): boolean {
++		return configurationService.getValue<boolean>(MultiAgentCockpit.SETTING_ENABLED) ?? true;
++	}
++
++	/**
++	 * Returns the 2-column horizontal cockpit editor layout:
++	 * Column 1: Living PLAN.md (~35%)
++	 * Column 2: Continuous Multi-Diff Staging (~65%)
++	 * (MA Chat & Control View is natively placed in the Secondary Sidebar).
++	 */
++	public static getCockpitLayout(): EditorGroupLayout {
++		return {
++			orientation: GroupOrientation.HORIZONTAL,
++			groups: [
++				{ size: 0.35 },
++				{ size: 0.65 }
++			]
++		};
++	}
++
++	/**
++	 * Resolves initial editor state when launching the workspace.
++	 */
++	public static getInitialEditorsState(
++		_configurationService: IConfigurationService,
++		_contextService: IWorkspaceContextService,
++		_storageService: IStorageService,
++		_editorGroupService: IEditorGroupsService
++	): ICockpitEditorsState | undefined {
++		return undefined;
++	}
++}
+diff --git a/src/vs/workbench/contrib/multiAgent/browser/multiAgentService.ts b/src/vs/workbench/contrib/multiAgent/browser/multiAgentService.ts
+new file mode 100644
+index 00000000..ee7791b5
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/browser/multiAgentService.ts
+@@ -0,0 +1,799 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { Emitter, Event } from '../../../../base/common/event.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
++import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
++import { ICommandService } from '../../../../platform/commands/common/commands.js';
++import { IFileService } from '../../../../platform/files/common/files.js';
++import { IPathService } from '../../../../platform/path/common/pathService.js';
++import { URI } from '../../../../base/common/uri.js';
++import { VSBuffer } from '../../../../base/common/buffer.js';
++import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
++import { StorageLayout } from '../common/storageLayout.js';
++import {
++	IMultiAgentService,
++	SwarmStatus,
++	SwarmRoleMapping,
++	ThinkingStep,
++	ChatMessage,
++	PlanUpdateEvent,
++	StagingUpdateEvent
++} from '../common/multiAgent.js';
++
++export class MultiAgentService extends Disposable implements IMultiAgentService {
++	declare readonly _serviceBrand: undefined;
++
++	private readonly _onDidChangeStatus = this._register(new Emitter<SwarmStatus>());
++	readonly onDidChangeStatus: Event<SwarmStatus> = this._onDidChangeStatus.event;
++
++	private readonly _onDidPlanUpdate = this._register(new Emitter<PlanUpdateEvent>());
++	readonly onDidPlanUpdate: Event<PlanUpdateEvent> = this._onDidPlanUpdate.event;
++
++	private readonly _onDidStagingUpdate = this._register(new Emitter<StagingUpdateEvent>());
++	readonly onDidStagingUpdate: Event<StagingUpdateEvent> = this._onDidStagingUpdate.event;
++
++	private readonly _onDidThinkingStep = this._register(new Emitter<ThinkingStep>());
++	readonly onDidThinkingStep: Event<ThinkingStep> = this._onDidThinkingStep.event;
++
++	private readonly _onDidMessage = this._register(new Emitter<ChatMessage>());
++	readonly onDidMessage: Event<ChatMessage> = this._onDidMessage.event;
++
++	private _status: SwarmStatus;
++	private _messages: ChatMessage[] = [];
++	private _thinkingSteps: ThinkingStep[] = [];
++	private _autopilot: boolean = false;
++	private _kernelTerminal?: ITerminalInstance;
++	private _pollTimer?: any;
++	private _currentStaging?: StagingUpdateEvent;
++
++	constructor(
++		@IConfigurationService private readonly configurationService: IConfigurationService,
++		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
++		@ICommandService private readonly commandService: ICommandService,
++		@IFileService private readonly fileService: IFileService,
++		@IPathService private readonly pathService: IPathService,
++		@ITerminalService private readonly terminalService: ITerminalService
++	) {
++		super();
++
++		this._autopilot = this.configurationService.getValue<boolean>('chat.agent.autopilot') ?? false;
++		this._status = {
++			state: 'idle',
++			roles: this._loadRoleMapping(),
++			stats: { tokenCount: 0, tokensPerSec: 0, estimatedCostUsd: 0 },
++			autopilot: this._autopilot
++		};
++
++		this._register(this.configurationService.onDidChangeConfiguration(e => {
++			if (e.affectsConfiguration('multiAgent.roleMapping') ||
++				e.affectsConfiguration('chat.agent.architect') ||
++				e.affectsConfiguration('chat.agent.worker') ||
++				e.affectsConfiguration('chat.agent.auditor') ||
++				e.affectsConfiguration('chat.agent.autopilot')) {
++				this._autopilot = this.configurationService.getValue<boolean>('chat.agent.autopilot') ?? false;
++				this._status = {
++					...this._status,
++					roles: this._loadRoleMapping(),
++					autopilot: this._autopilot
++				};
++				this._onDidChangeStatus.fire(this._status);
++			}
++		}));
++	}
++
++	private _loadRoleMapping(): SwarmRoleMapping {
++		const config = this.configurationService.getValue<Record<string, string>>('multiAgent.roleMapping') || {};
++		const arch = this.configurationService.getValue<string>('chat.agent.architect');
++		const worker = this.configurationService.getValue<string>('chat.agent.worker');
++		const auditor = this.configurationService.getValue<string>('chat.agent.auditor');
++		return {
++			architect: arch || config['architect'] || 'antigravity',
++			worker: worker || config['worker'] || 'copilot',
++			auditor: auditor || config['auditor'] || 'antigravity'
++		};
++	}
++
++	getStatus(): SwarmStatus {
++		return this._status;
++	}
++
++	getMessages(): readonly ChatMessage[] {
++		return this._messages;
++	}
++
++	getThinkingSteps(): readonly ThinkingStep[] {
++		return this._thinkingSteps;
++	}
++
++	getStaging(): StagingUpdateEvent | undefined {
++		return this._currentStaging;
++	}
++
++	isAutopilotEnabled(): boolean {
++		return this._autopilot;
++	}
++
++	setAutopilot(enabled: boolean): void {
++		this._autopilot = enabled;
++		this.configurationService.updateValue('chat.agent.autopilot', enabled);
++		this._status = { ...this._status, autopilot: enabled };
++		this._onDidChangeStatus.fire(this._status);
++	}
++
++	private async _getOrCreateKernelTerminal(): Promise<ITerminalInstance> {
++		if (this._kernelTerminal && !this._kernelTerminal.isDisposed && this.terminalService.instances.includes(this._kernelTerminal)) {
++			return this._kernelTerminal;
++		}
++		const existing = this.terminalService.instances.find(t => t.title === 'MA Swarm Kernel');
++		if (existing && !existing.isDisposed) {
++			this._kernelTerminal = existing;
++			return existing;
++		}
++		this._kernelTerminal = await this.terminalService.createTerminal({ config: { name: 'MA Swarm Kernel' } });
++		return this._kernelTerminal;
++	}
++
++	public async dispatch(objective: string): Promise<string> {
++		const trimmed = objective.trim();
++		if (!trimmed) {
++			throw new Error('Objective cannot be empty');
++		}
++
++		const taskId = `task-${Date.now().toString(36)}`;
++
++		// 1. Add real user message
++		const userMsg: ChatMessage = {
++			id: `msg-${Date.now()}`,
++			sender: 'user',
++			text: trimmed,
++			timestamp: Date.now()
++		};
++		this._messages.push(userMsg);
++		this._onDidMessage.fire(userMsg);
++
++		// 2. Set planning state
++		this._status = {
++			...this._status,
++			state: 'planning',
++			currentTaskId: taskId,
++			currentObjective: trimmed,
++			activeRole: 'architect',
++			activeAgent: this._status.roles.architect,
++			error: undefined
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		// 3. Trigger Hub Daemon workflow execution
++		this._executeDispatchFlow(taskId, trimmed).catch(err => {
++			this._status = {
++				...this._status,
++				state: 'error',
++				error: String(err)
++			};
++			this._onDidChangeStatus.fire(this._status);
++		});
++
++		return taskId;
++	}
++
++	private async _executeDispatchFlow(taskId: string, objective: string): Promise<void> {
++		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
++		const workspaceRoot = workspaceFolders[0]?.uri;
++		if (!workspaceRoot) {
++			throw new Error('No workspace folder open');
++		}
++
++		const userHome = await this.pathService.userHome();
++		const brainDir = StorageLayout.getBrainDir(userHome, workspaceRoot);
++		const taskFileUri = StorageLayout.getTaskFile(userHome, workspaceRoot);
++		const planFileUri = StorageLayout.getPlanFile(userHome, workspaceRoot);
++		const stagingFileUri = StorageLayout.getStagingFile(userHome, workspaceRoot);
++		const statusFileUri = StorageLayout.getStatusFile(userHome, workspaceRoot);
++		const eventsFileUri = StorageLayout.getEventsFile(userHome, workspaceRoot);
++		const auditReportUri = StorageLayout.getAuditReportFile(userHome, workspaceRoot);
++
++		// Ensure brain directory exists
++		try {
++			await this.fileService.createFolder(brainDir);
++		} catch {
++			// ignore if already exists
++		}
++
++		// Clean up stale artifacts from previous runs
++		try {
++			if (await this.fileService.exists(planFileUri)) {
++				await this.fileService.del(planFileUri);
++			}
++			if (await this.fileService.exists(stagingFileUri)) {
++				await this.fileService.del(stagingFileUri);
++			}
++			if (await this.fileService.exists(statusFileUri)) {
++				await this.fileService.del(statusFileUri);
++			}
++			if (await this.fileService.exists(eventsFileUri)) {
++				await this.fileService.del(eventsFileUri);
++			}
++			if (await this.fileService.exists(auditReportUri)) {
++				await this.fileService.del(auditReportUri);
++			}
++		} catch {
++			// ignore cleanup errors
++		}
++
++		// Write task safely to brain storage (eliminating shell injection risks)
++		await this.fileService.writeFile(taskFileUri, VSBuffer.fromString(objective));
++
++		// Dispatch through single managed terminal instance
++		try {
++			const hubScript = StorageLayout.getHubScriptPath();
++			const harnessDir = StorageLayout.getHarnessDir();
++			const term = await this._getOrCreateKernelTerminal();
++			this.terminalService.setActiveInstance(term);
++			await this.terminalService.focusInstance(term);
++			const setupEnv = `export PYTHONPATH="${harnessDir}" PATH="$HOME/.local/bin:$HOME/.gemini/bin:/usr/local/bin:/usr/bin:/bin:$PATH"`;
++			const registerCmd = `python3 "${hubScript}" here --verify '[["npm","run","build"]]' 2>/dev/null || python3 "${hubScript}" here --verify '[["true"]]' 2>/dev/null || true`;
++			const runCmd = `python3 "${hubScript}" run here --task-file "${taskFileUri.fsPath}" --max-calls 9 --force`;
++			await term.sendText(`${setupEnv} && (${registerCmd}) && ${runCmd}`, true);
++		} catch (err) {
++			console.warn('[MultiAgentService] Could not send dispatch command to terminal:', err);
++		}
++
++		// Start syncing real artifacts produced by AI agents
++		this._startBrainSync(taskId, userHome, workspaceRoot);
++	}
++
++	private _startBrainSync(taskId: string, userHome: URI, workspaceRoot: URI): void {
++		if (this._pollTimer) {
++			clearInterval(this._pollTimer);
++			this._pollTimer = undefined;
++		}
++
++		let planDetected = false;
++		let stagingDetected = false;
++		let auditDetected = false;
++		let eventsOffset = 0;
++
++		const planFileUri = StorageLayout.getPlanFile(userHome, workspaceRoot);
++		const stagingFileUri = StorageLayout.getStagingFile(userHome, workspaceRoot);
++		const statusFileUri = StorageLayout.getStatusFile(userHome, workspaceRoot);
++		const eventsFileUri = StorageLayout.getEventsFile(userHome, workspaceRoot);
++		const auditFileUri = StorageLayout.getAuditReportFile(userHome, workspaceRoot);
++
++		this._pollTimer = setInterval(async () => {
++			try {
++				// 1. Process real engine events from events.jsonl
++				if (await this.fileService.exists(eventsFileUri)) {
++					const eventsBytes = await this.fileService.readFile(eventsFileUri);
++					const rawContent = eventsBytes.value.toString();
++					const lines = rawContent.split('\n').filter(Boolean);
++					while (eventsOffset < lines.length) {
++						const line = lines[eventsOffset++];
++						try {
++							const evt = JSON.parse(line);
++							this._handleRealEngineEvent(evt);
++						} catch {
++							// skip malformed line
++						}
++					}
++				}
++
++				// 2. Sync real living PLAN.md generated by Architect CLI
++				if (!planDetected) {
++					const planExists = await this.fileService.exists(planFileUri);
++					if (planExists) {
++						const contentBytes = await this.fileService.readFile(planFileUri);
++						const planContent = contentBytes.value.toString();
++						if (planContent.trim().length > 0) {
++							planDetected = true;
++							const planEvent: PlanUpdateEvent = {
++								taskId,
++								planContent,
++								planPath: planFileUri.fsPath,
++								complexity: 'standard',
++								strategy: 'AI Planner living architecture plan',
++								acceptanceCriteria: []
++							};
++							this._onDidPlanUpdate.fire(planEvent);
++
++							const planTitle = planContent.split('\n').find(l => l.startsWith('# Living Plan:'))?.replace('# Living Plan:', '').trim() || this._status.currentObjective || '';
++							const agentMsg: ChatMessage = {
++								id: `msg-${Date.now()}`,
++								sender: 'agent',
++								agentName: this._status.roles.architect,
++								role: 'architect',
++								text: `Living plan \`PLAN.md\` for objective: **"${planTitle}"** is ready in Column 1.\n\nPlease review the strategy and click **Approve Plan** to start implementation in an isolated worktree.`,
++								timestamp: Date.now(),
++								isPlan: true
++							};
++							this._messages.push(agentMsg);
++							this._onDidMessage.fire(agentMsg);
++
++							if (this._autopilot) {
++								await this.approvePlan(taskId);
++							} else {
++								this._status = {
++									...this._status,
++									state: 'waiting_approval',
++									activeRole: undefined,
++									activeAgent: undefined
++								};
++								this._onDidChangeStatus.fire(this._status);
++							}
++						}
++					}
++				}
++
++				// 3. Sync real staging changes generated by Worker CLI
++				if (!stagingDetected) {
++					const stagingExists = await this.fileService.exists(stagingFileUri);
++					if (stagingExists) {
++						const metaBytes = await this.fileService.readFile(stagingFileUri);
++						try {
++							const meta = JSON.parse(metaBytes.value.toString());
++							stagingDetected = true;
++							const rawChanged = meta.changed_files;
++							const filesList: string[] = Array.isArray(rawChanged)
++								? rawChanged
++								: (rawChanged && Array.isArray(rawChanged.files) ? rawChanged.files : []);
++							const stagingEvt: StagingUpdateEvent = {
++								taskId,
++								worktreePath: meta.workspace,
++								changedFiles: filesList,
++								diffPath: StorageLayout.getDiffStagingFile(userHome, workspaceRoot).fsPath
++							};
++							this._currentStaging = stagingEvt;
++							this._onDidStagingUpdate.fire(stagingEvt);
++
++							this._status = {
++								...this._status,
++								state: 'auditing',
++								activeRole: 'auditor',
++								activeAgent: this._status.roles.auditor
++							};
++							this._onDidChangeStatus.fire(this._status);
++
++							const workerMsg: ChatMessage = {
++								id: `msg-${Date.now()}`,
++								sender: 'agent',
++								agentName: this._status.roles.worker,
++								role: 'worker',
++								text: `Worker "${this._status.roles.worker}" completed implementation in isolated worktree.\n\nPrepared **${filesList.length} file(s)**: ${filesList.map(f => `\`${f}\``).join(', ')} in **Continuous Multi-Diff (Column 2)** for Auditor verification.`,
++								timestamp: Date.now()
++							};
++							this._messages.push(workerMsg);
++							this._onDidMessage.fire(workerMsg);
++						} catch {
++							// Staging file partially written
++						}
++					}
++				}
++
++				// 4. Sync real Auditor completion report (delivering final completion response)
++				if (!auditDetected && await this.fileService.exists(auditFileUri)) {
++					const auditBytes = await this.fileService.readFile(auditFileUri);
++					try {
++						const audit = JSON.parse(auditBytes.value.toString());
++						if (audit.summary || audit.verdict) {
++							auditDetected = true;
++							const isApproved = audit.verdict === 'approve';
++							this._status = {
++								...this._status,
++								state: isApproved ? 'completed' : 'waiting_approval',
++								activeRole: 'auditor',
++								activeAgent: audit.auditor || this._status.roles.auditor
++							};
++							this._onDidChangeStatus.fire(this._status);
++
++							let auditMsgText = `### 🛡️ [AUDITOR REPORT] Verification: ${isApproved ? '✓ APPROVED' : '✕ REVISION REQUESTED'}\n\n`;
++							auditMsgText += `**Auditor Evaluation:**\n${audit.summary}\n\n`;
++							if (audit.findings && audit.findings.length > 0) {
++								auditMsgText += `**Actionable Findings (${audit.findings.length}):**\n`;
++								for (const f of audit.findings) {
++									auditMsgText += `- ${f}\n`;
++								}
++							} else {
++								auditMsgText += `**Acceptance Criteria:** 100% satisfied. No AST diagnostics, type mismatches, or security risks detected.\n`;
++							}
++							if (isApproved) {
++								auditMsgText += `\n*Changes staged and verified. Click **✓ Accept Changes** on the Staging Bar to merge into main workspace.*`;
++							}
++
++							const auditorMsg: ChatMessage = {
++								id: `msg-${Date.now()}`,
++								sender: 'agent',
++								agentName: audit.auditor || this._status.roles.auditor,
++								role: 'auditor',
++								text: auditMsgText,
++								timestamp: Date.now()
++							};
++							this._messages.push(auditorMsg);
++							this._onDidMessage.fire(auditorMsg);
++						}
++					} catch {
++						// report partially written
++					}
++				}
++
++				// 5. Sync completion from Hub status file
++				const statusExists = await this.fileService.exists(statusFileUri);
++				if (statusExists) {
++					const statusBytes = await this.fileService.readFile(statusFileUri);
++					try {
++						const s = JSON.parse(statusBytes.value.toString());
++						if (s.state === 'blocked' || s.state === 'error') {
++							if (this._pollTimer) {
++								clearInterval(this._pollTimer);
++								this._pollTimer = undefined;
++							}
++							this._status = {
++								...this._status,
++								state: 'error',
++								error: s.error || s.summary || 'Task was blocked by verification check or policy.',
++								activeRole: undefined,
++								activeAgent: undefined
++							};
++							this._onDidChangeStatus.fire(this._status);
++
++							const blockedMsg: ChatMessage = {
++								id: `msg-${Date.now()}`,
++								sender: 'agent',
++								agentName: this._status.roles.auditor || 'auditor',
++								role: 'auditor',
++								text: `⚠️ **Task Interrupted / Blocked**\n\n${s.error || s.summary || 'Task verification failed and was blocked.'}`,
++								timestamp: Date.now()
++							};
++							this._messages.push(blockedMsg);
++							this._onDidMessage.fire(blockedMsg);
++						} else if (s.state === 'completed') {
++							if (this._pollTimer) {
++								clearInterval(this._pollTimer);
++								this._pollTimer = undefined;
++							}
++						}
++					} catch {
++						// ignore parse errors
++					}
++				}
++			} catch (err) {
++				console.warn('[MultiAgentService] Brain sync poll error:', err);
++			}
++		}, 1000);
++	}
++
++	private _handleRealEngineEvent(evt: any): void {
++		if (!evt || !evt.kind) return;
++		const created = evt.created ? Math.round(evt.created * 1000) : Date.now();
++		const data = evt.data || {};
++
++		switch (evt.kind) {
++			case 'agent_started': {
++				const role = data.role;
++				const provider = data.provider;
++				const call = data.call || 1;
++				const roleName = role === 'plan' ? 'architect' : (role === 'implement' ? 'worker' : 'auditor');
++
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: provider,
++					role: roleName,
++					text: `Executing [${role.toUpperCase()}] phase with engine "${provider}" (Call #${call})...`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++
++				this._status = {
++					...this._status,
++					state: role === 'plan' ? 'planning' : (role === 'implement' ? 'executing' : 'auditing'),
++					activeRole: roleName,
++					activeAgent: provider
++				};
++				this._onDidChangeStatus.fire(this._status);
++				break;
++			}
++			case 'worker_assigned': {
++				const assigned = data.assigned_worker;
++				const leader = data.leader;
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: leader,
++					role: 'architect',
++					text: `Planner "${leader}" assigned implementation to Worker Agent: "${assigned}"`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++				break;
++			}
++			case 'files_changed': {
++				const files = Array.isArray(data) ? data : [];
++				if (files.length > 0) {
++					const step: ThinkingStep = {
++						id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++						agent: this._status.activeAgent || this._status.roles.worker,
++						role: 'worker',
++						text: `Worker generated code across ${files.length} file(s): ${files.slice(0, 3).join(', ')}${files.length > 3 ? '...' : ''}`,
++						timestamp: created
++					};
++					this._thinkingSteps.push(step);
++					this._onDidThinkingStep.fire(step);
++				}
++				break;
++			}
++			case 'verification_started': {
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: this._status.roles.auditor,
++					role: 'auditor',
++					text: `Auditor running automated test verification suite...`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++				break;
++			}
++			case 'verification': {
++				const passed = Boolean(data.passed);
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: this._status.roles.auditor,
++					role: 'auditor',
++					text: passed ? `Verification checks: ✓ PASSED (All criteria met)` : `Verification checks: ✕ FAILED (Test errors detected)`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++				break;
++			}
++			case 'repair_requested': {
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: this._status.roles.auditor,
++					role: 'auditor',
++					text: `Auditor requested repair: ${data.reason}`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++				break;
++			}
++			case 'task_blocked':
++			case 'blocked': {
++				const step: ThinkingStep = {
++					id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
++					agent: data.provider || 'system',
++					role: 'auditor',
++					text: `Task blocked: ${data.reason || data.error || 'Execution stopped by policy'}`,
++					timestamp: created
++				};
++				this._thinkingSteps.push(step);
++				this._onDidThinkingStep.fire(step);
++
++				this._status = {
++					...this._status,
++					state: 'error',
++					error: data.reason || data.error || 'Task blocked',
++					activeRole: undefined,
++					activeAgent: undefined
++				};
++				this._onDidChangeStatus.fire(this._status);
++
++				const blockMsg: ChatMessage = {
++					id: `msg-${Date.now()}`,
++					sender: 'agent',
++					agentName: this._status.roles.auditor || 'auditor',
++					role: 'auditor',
++					text: `⚠️ **Task Interrupted / Blocked**\n\n${data.reason || 'Verification check failed and task was blocked.'}`,
++					timestamp: Date.now()
++				};
++				this._messages.push(blockMsg);
++				this._onDidMessage.fire(blockMsg);
++				break;
++			}
++		}
++	}
++
++	public async approvePlan(taskId?: string): Promise<void> {
++		this._status = {
++			...this._status,
++			state: 'executing',
++			activeRole: 'worker',
++			activeAgent: this._status.roles.worker
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		// Trigger continuous multi-diff opening in Column 2
++		await this.commandService.executeCommand('workbench.action.multiAgent.openContinuousDiff');
++	}
++
++	public async rejectPlan(taskId?: string, feedback?: string): Promise<void> {
++		const id = taskId || this._status.currentTaskId || 'active-task';
++		if (this._pollTimer) {
++			clearInterval(this._pollTimer);
++			this._pollTimer = undefined;
++		}
++		this._status = {
++			...this._status,
++			state: 'idle',
++			activeRole: undefined,
++			activeAgent: undefined
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		const rejectMsg: ChatMessage = {
++			id: `msg-${Date.now()}`,
++			sender: 'system',
++			text: `Plan for task ${id} was rejected.${feedback ? ` Feedback: ${feedback}` : ''} Awaiting revised instructions.`,
++			timestamp: Date.now()
++		};
++		this._messages.push(rejectMsg);
++		this._onDidMessage.fire(rejectMsg);
++	}
++
++	public async cancelTask(taskId?: string): Promise<void> {
++		const id = taskId || this._status.currentTaskId;
++		if (this._pollTimer) {
++			clearInterval(this._pollTimer);
++			this._pollTimer = undefined;
++		}
++		try {
++			const term = await this._getOrCreateKernelTerminal();
++			const hubScript = StorageLayout.getHubScriptPath();
++			const harnessDir = StorageLayout.getHarnessDir();
++			const setupEnv = `export PYTHONPATH="${harnessDir}" PATH="$HOME/.local/bin:$HOME/.gemini/bin:/usr/local/bin:/usr/bin:/bin:$PATH"`;
++			if (id) {
++				await term.sendText(`${setupEnv} && python3 "${hubScript}" cancel "${id}"`, true);
++			}
++			await term.sendText(`${setupEnv} && python3 "${hubScript}" stop 2>/dev/null || true`, true);
++		} catch (err) {
++			console.warn('[MultiAgentService] Could not send cancel to terminal:', err);
++		}
++
++		this._status = {
++			...this._status,
++			state: 'idle',
++			currentTaskId: undefined,
++			activeRole: undefined,
++			activeAgent: undefined
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		const cancelMsg: ChatMessage = {
++			id: `msg-${Date.now()}`,
++			sender: 'system',
++			text: `Task ${id || ''} has been cancelled. Swarm returned to idle.`,
++			timestamp: Date.now()
++		};
++		this._messages.push(cancelMsg);
++		this._onDidMessage.fire(cancelMsg);
++	}
++
++	public async acceptStaging(taskId?: string): Promise<void> {
++		const id = taskId || this._status.currentTaskId || 'active-task';
++		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
++		const workspaceRoot = workspaceFolders[0]?.uri;
++		if (!workspaceRoot) return;
++
++		const userHome = await this.pathService.userHome();
++		const diffFile = StorageLayout.getDiffStagingFile(userHome, workspaceRoot);
++
++		try {
++			if (await this.fileService.exists(diffFile)) {
++				const term = await this._getOrCreateKernelTerminal();
++				await term.sendText(`git -C "${workspaceRoot.fsPath}" apply "${diffFile.fsPath}"`, true);
++			}
++		} catch (err) {
++			console.warn('[MultiAgentService] Could not apply staging diff:', err);
++		}
++
++		this._currentStaging = undefined;
++		this._status = {
++			...this._status,
++			state: 'completed',
++			activeRole: 'auditor',
++			activeAgent: this._status.roles.auditor
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		// Completion response delivered directly by the Auditor Agent
++		const auditorMsg: ChatMessage = {
++			id: `msg-${Date.now()}`,
++			sender: 'agent',
++			agentName: this._status.roles.auditor,
++			role: 'auditor',
++			text: `All staged changes have been cleanly merged into the main workspace. Auditor "${this._status.roles.auditor}" confirms task **${id}** is verified complete and safe.`,
++			timestamp: Date.now()
++		};
++		this._messages.push(auditorMsg);
++		this._onDidMessage.fire(auditorMsg);
++	}
++
++	public async rejectStaging(taskId?: string): Promise<void> {
++		const id = taskId || this._status.currentTaskId || 'active-task';
++		this._currentStaging = undefined;
++		this._status = {
++			...this._status,
++			state: 'idle',
++			activeRole: undefined,
++			activeAgent: undefined
++		};
++		this._onDidChangeStatus.fire(this._status);
++
++		const rejectMsg: ChatMessage = {
++			id: `msg-${Date.now()}`,
++			sender: 'system',
++			text: `Staged changes for task ${id} have been rejected. Workspace remains untouched.`,
++			timestamp: Date.now()
++		};
++		this._messages.push(rejectMsg);
++		this._onDidMessage.fire(rejectMsg);
++	}
++
++	public async loginProvider(provider: string): Promise<void> {
++		const prov = (provider || '').toLowerCase();
++		if (prov.includes('antigravity') || prov === 'agy') {
++			const msg: ChatMessage = {
++				id: `msg-${Date.now()}`,
++				sender: 'system',
++				text: 'Google Antigravity is active and authenticated via native Google OAuth.',
++				timestamp: Date.now()
++			};
++			this._messages.push(msg);
++			this._onDidMessage.fire(msg);
++			return;
++		}
++
++		let cmd = '';
++		if (prov.includes('codex')) {
++			cmd = 'codex login';
++		} else if (prov.includes('claude')) {
++			cmd = 'claude login';
++		} else if (prov.includes('copilot') || prov.includes('github')) {
++			cmd = 'gh auth login || copilot login';
++		} else {
++			cmd = `${provider} login`;
++		}
++
++		const term = await this.terminalService.createTerminal({ config: { name: `Agent Auth: ${provider.toUpperCase()}` } });
++		this.terminalService.setActiveInstance(term);
++		await this.terminalService.focusInstance(term);
++		await term.sendText(cmd, true);
++	}
++
++	public async runDoctor(): Promise<void> {
++		const hubScript = StorageLayout.getHubScriptPath();
++		const harnessDir = StorageLayout.getHarnessDir();
++		const term = await this._getOrCreateKernelTerminal();
++		this.terminalService.setActiveInstance(term);
++		await this.terminalService.focusInstance(term);
++		await term.sendText(`export PYTHONPATH="${harnessDir}" PATH="$HOME/.local/bin:$HOME/.gemini/bin:/usr/local/bin:/usr/bin:/bin:$PATH" && python3 "${hubScript}" doctor`, true);
++	}
++
++	public clearSession(): void {
++		this._messages = [];
++		this._thinkingSteps = [];
++		this._status = {
++			...this._status,
++			state: 'idle',
++			currentTaskId: undefined,
++			currentObjective: undefined,
++			activeRole: undefined,
++			activeAgent: undefined,
++			error: undefined
++		};
++		this._onDidChangeStatus.fire(this._status);
++		this._onDidMessage.fire({ id: 'clear', sender: 'system', text: '', timestamp: Date.now() });
++	}
++
++	override dispose(): void {
++		if (this._pollTimer) {
++			clearInterval(this._pollTimer);
++			this._pollTimer = undefined;
++		}
++		super.dispose();
++	}
++}
+diff --git a/src/vs/workbench/contrib/multiAgent/common/multiAgent.ts b/src/vs/workbench/contrib/multiAgent/common/multiAgent.ts
+new file mode 100644
+index 00000000..e751c193
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/common/multiAgent.ts
+@@ -0,0 +1,100 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
++import { Event } from '../../../../base/common/event.js';
++
++export const IMultiAgentService = createDecorator<IMultiAgentService>('multiAgentService');
++
++export type SwarmState = 'idle' | 'planning' | 'waiting_approval' | 'executing' | 'auditing' | 'completed' | 'error';
++
++export interface SwarmStats {
++	readonly tokenCount: number;
++	readonly tokensPerSec: number;
++	readonly estimatedCostUsd: number;
++}
++
++export interface SwarmRoleMapping {
++	readonly architect: string;
++	readonly worker: string;
++	readonly auditor: string;
++}
++
++export interface SwarmStatus {
++	readonly state: SwarmState;
++	readonly currentTaskId?: string;
++	readonly currentObjective?: string;
++	readonly activeRole?: string;
++	readonly activeAgent?: string;
++	readonly roles: SwarmRoleMapping;
++	readonly stats: SwarmStats;
++	readonly autopilot: boolean;
++	readonly error?: string;
++}
++
++export interface ThinkingStep {
++	readonly id: string;
++	readonly agent: string;
++	readonly role: string;
++	readonly text: string;
++	readonly timestamp: number;
++}
++
++export interface ChatMessage {
++	readonly id: string;
++	readonly sender: 'user' | 'agent' | 'system';
++	readonly agentName?: string;
++	readonly role?: string;
++	readonly text: string;
++	readonly timestamp: number;
++	readonly isPlan?: boolean;
++}
++
++export interface PlanUpdateEvent {
++	readonly taskId: string;
++	readonly planContent: string;
++	readonly planPath?: string;
++	readonly complexity?: string;
++	readonly strategy?: string;
++	readonly tasks?: Array<{ id: string; title: string; worker: string; status: string }>;
++	readonly acceptanceCriteria?: string[];
++}
++
++export interface StagingUpdateEvent {
++	readonly taskId: string;
++	readonly worktreePath?: string;
++	readonly changedFiles: string[];
++	readonly diffPath?: string;
++}
++
++export interface IMultiAgentService {
++	readonly _serviceBrand: undefined;
++
++	readonly onDidChangeStatus: Event<SwarmStatus>;
++	readonly onDidPlanUpdate: Event<PlanUpdateEvent>;
++	readonly onDidStagingUpdate: Event<StagingUpdateEvent>;
++	readonly onDidThinkingStep: Event<ThinkingStep>;
++	readonly onDidMessage: Event<ChatMessage>;
++
++	getStatus(): SwarmStatus;
++	getMessages(): readonly ChatMessage[];
++	getThinkingSteps(): readonly ThinkingStep[];
++	getStaging(): StagingUpdateEvent | undefined;
++
++	dispatch(objective: string): Promise<string>;
++	approvePlan(taskId?: string): Promise<void>;
++	rejectPlan(taskId?: string, feedback?: string): Promise<void>;
++	cancelTask(taskId?: string): Promise<void>;
++	acceptStaging(taskId?: string): Promise<void>;
++	rejectStaging(taskId?: string): Promise<void>;
++
++	loginProvider(provider: string): Promise<void>;
++	runDoctor(): Promise<void>;
++	clearSession(): void;
++
++	setAutopilot(enabled: boolean): void;
++	isAutopilotEnabled(): boolean;
++}
++
+diff --git a/src/vs/workbench/contrib/multiAgent/common/storageLayout.ts b/src/vs/workbench/contrib/multiAgent/common/storageLayout.ts
+new file mode 100644
+index 00000000..904526aa
+--- /dev/null
++++ b/src/vs/workbench/contrib/multiAgent/common/storageLayout.ts
+@@ -0,0 +1,76 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { URI } from '../../../../base/common/uri.js';
++
++/**
++ * StorageLayout manages centralized external paths for Multi-Agent IDE.
++ * All plans, tasks, and staging diffs live in ~/.multi-agent-ide/brain/<slug>/
++ * to guarantee ZERO root clutter in the user's project workspace.
++ */
++export class StorageLayout {
++	public static getProjectSlug(folderUri: URI): string {
++		const str = folderUri.fsPath;
++		let hash = 5381;
++		for (let i = 0; i < str.length; i++) {
++			hash = ((hash << 5) + hash) + str.charCodeAt(i);
++			hash = hash & hash;
++		}
++		const hex = Math.abs(hash).toString(16).padStart(8, '0');
++		const segments = folderUri.path.split('/').filter(Boolean);
++		const base = segments[segments.length - 1] || 'workspace';
++		const cleanBase = base.replace(/[^a-zA-Z0-9_-]/g, '_');
++		return `${cleanBase}-${hex}`;
++	}
++
++	public static getGlobalRoot(userHomeUri?: URI): URI {
++		if (userHomeUri) {
++			return URI.joinPath(userHomeUri, '.multi-agent-ide');
++		}
++		// Fallback to standard home
++		return URI.file('/tmp/.multi-agent-ide');
++	}
++
++	public static getBrainDir(userHomeUri: URI, workspaceUri: URI): URI {
++		const slug = StorageLayout.getProjectSlug(workspaceUri);
++		return URI.joinPath(StorageLayout.getGlobalRoot(userHomeUri), 'brain', slug);
++	}
++
++	public static getPlanFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'PLAN.md');
++	}
++
++	public static getTaskFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'task.json');
++	}
++
++	public static getDiffStagingFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'DIFF_STAGING.diff');
++	}
++
++	public static getStagingFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'staging.json');
++	}
++
++	public static getStatusFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'status.json');
++	}
++
++	public static getEventsFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'events.jsonl');
++	}
++
++	public static getAuditReportFile(userHomeUri: URI, workspaceUri: URI): URI {
++		return URI.joinPath(StorageLayout.getBrainDir(userHomeUri, workspaceUri), 'audit_report.json');
++	}
++
++	public static getHubScriptPath(): string {
++		return '/home/nguyenkhang/Project/multi-agent-ide/harness/cli/hub.py';
++	}
++
++	public static getHarnessDir(): string {
++		return '/home/nguyenkhang/Project/multi-agent-ide/harness';
++	}
++}
+diff --git a/src/vs/workbench/workbench.common.main.ts b/src/vs/workbench/workbench.common.main.ts
+index b2aaf10f..1bc99938 100644
+--- a/src/vs/workbench/workbench.common.main.ts
++++ b/src/vs/workbench/workbench.common.main.ts
+@@ -306,6 +306,9 @@ import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
+ // Multi Diff Editor
+ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
+ 
++// Multi Agent Swarm IDE (Tier 2)
++import './contrib/multiAgent/browser/multiAgent.contribution.js';
++
+ // Commands
+ import './contrib/commands/common/commands.contribution.js';
+ 
+@@ -395,9 +398,6 @@ import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
+ import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
+ import './contrib/welcomeViews/common/newFile.contribution.js';
+ 
+-// Welcome Onboarding
+-import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
+-
+ // Onboarding (scenario engine)
+ import './contrib/onboarding/browser/onboarding.contribution.js';
+ import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';

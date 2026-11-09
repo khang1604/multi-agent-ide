@@ -123,7 +123,7 @@ class Store:
                        (project_id, name, str(path), encode(verify), encode(context_paths), int(network)))
         return self.project(project_id)
 
-    def create(self, project, objective, request_key, complexity, max_calls, max_repairs):
+    def create(self, project, objective, request_key, complexity, max_calls, max_repairs, force=False):
         """Create or recover an idempotent durable workflow request."""
         project = self.project(project)
         if not isinstance(objective, str) or not objective.strip() or len(objective) > 16000:
@@ -142,7 +142,10 @@ class Store:
             active = db.execute("SELECT id FROM workflows WHERE project_id=? AND status IN ('queued','running','waiting','recovering')",
                                 (project['id'],)).fetchone()
             if active:
-                raise ValueError('Project already has active workflow ' + active['id'])
+                if force:
+                    db.execute("UPDATE workflows SET status='cancelled', updated=? WHERE id=?", (now, active['id']))
+                else:
+                    raise ValueError('Project already has active workflow ' + active['id'])
             workflow_id = uuid.uuid4().hex[:12]
             phase = 'plan'
             db.execute('''INSERT INTO workflows
@@ -153,9 +156,30 @@ class Store:
         return self.workflow(workflow_id)
 
     def _event(self, db, workflow_id, kind, data):
-        """Insert an event using the current SQLite transaction."""
+        """Insert an event using the current SQLite transaction and stream to brain log."""
+        now = time.time()
         db.execute('INSERT INTO events(workflow_id,kind,data,created) VALUES(?,?,?,?)',
-                   (workflow_id, kind, encode(data), time.time()))
+                   (workflow_id, kind, encode(data), now))
+        if workflow_id:
+            try:
+                row = db.execute('SELECT project_id FROM workflows WHERE id=?', (workflow_id,)).fetchone()
+                if row:
+                    p = db.execute('SELECT path, name FROM projects WHERE id=?', (row[0],)).fetchone()
+                    if p:
+                        resolved = str(Path(p[0]).resolve())
+                        h = 5381
+                        for c in resolved:
+                            h = (((h << 5) + h) + ord(c)) & 0xFFFFFFFF
+                        signed_h = -((~h & 0xFFFFFFFF) + 1) if (h & 0x80000000) else h
+                        hex_str = f"{abs(signed_h):x}".zfill(8)
+                        slug = f"{Path(p[0]).name.replace(' ', '_')}-{hex_str}"
+                        brain_dir = Path.home() / '.multi-agent-ide' / 'brain' / slug
+                        brain_dir.mkdir(parents=True, exist_ok=True)
+                        evt_obj = {'flow_id': workflow_id, 'kind': kind, 'data': data, 'created': now}
+                        with open(brain_dir / 'events.jsonl', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(evt_obj, ensure_ascii=False) + '\n')
+            except Exception:
+                pass
 
     def update(self, workflow_id, expected_generation=None, **fields):
         """Persist workflow changes and updated timestamps."""

@@ -129,12 +129,72 @@
     - Git tag `v0.1.0-beta` and GitHub Release `v0.1.0-beta`.
     - Git tag `v0.1.1-beta` and GitHub Release `v0.1.1-beta` published at `https://github.com/khang1604/multi-agent-ide/releases/tag/v0.1.1-beta`.
 
+21. **Deep Native Multi-Agent Subsystem & MA Chat & Control View:**
+    - Completed transition away from the external extension model into a 100% native Code-OSS contrib subsystem (`src/vs/workbench/contrib/multiAgent/`).
+    - Implemented native `IMultiAgentService` in `src/vs/workbench/contrib/multiAgent/browser/multiAgentService.ts` and `common/multiAgent.ts` managing Swarm orchestration, Living `PLAN.md` events, worktree staging updates, and real thinking stream events without mock templates.
+    - Renamed Swarm Chat to **MA Chat & Control View** (`MultiAgentChatControlView.ts`), docked by default in the **Secondary Sidebar (`ViewContainerLocation.AuxiliaryBar`)** as requested.
+    - Updated `MultiAgentCockpit` layout to 2 columns in the editor area (Col 1: Living `PLAN.md` @ 35%, Col 2: Continuous Multi-Diff Staging @ 65%) with the Secondary Sidebar hosting MA Chat & Control View.
+    - Injected native container restoration in `vscode/src/vs/workbench/browser/layout.ts` pointing to `workbench.view.multiAgent`.
+    - Removed old extension symlink `vscode/extensions/multi-agent-harness` to eliminate legacy extension interference and forced role revert issues.
+    - Compiled all native contrib modules with TypeScript with 0 errors.
+
+22. **Ponytail Audit Execution (Steps 1 to 5 Completed):**
+    - **Step 1 (Safe File-based Task Dispatch):** Eliminated all shell quotation risks by storing objectives in `~/.multi-agent-ide/brain/<slug>/task.json` via `StorageLayout.getTaskFile()` and passing `--task-file <path>` to `hub.py run`.
+    - **Step 2 (Eliminate Mock Plan Template):** Removed hardcoded `# Living Plan:` templates in `multiAgentService.ts`. `engine.py` exports real Markdown plans from the AI Planner CLI via `_export_living_plan`, dynamically picked up by `MultiAgentService` brain sync.
+    - **Step 3 (Centralized External Brain Storage):** All project plans, staging diffs, and metadata are saved outside the user repository in `~/.multi-agent-ide/brain/<slug>/`, guaranteeing zero `.local/` pollution in target projects.
+    - **Step 4 (Singleton Terminal Management):** Refactored terminal handling to retain `_kernelTerminal` reference, preventing multiple duplicate terminals from opening.
+    - **Step 5 (Interactive Staging Action Bar & Safe Formatting):** Upgraded `MultiAgentChatControlView` with an interactive Staging Action Bar (`[● STAGED] X files ready`, `[✓ Chấp nhận / Accept]`, `[✕ Từ chối / Reject]`) and DOM-based safe markdown formatting (bold `**text**` and inline code `` `code` ``) without raw `innerHTML` risks.
+
+23. **Elimination of Fake Progress & Audit Agent Completion Protocol:**
+    - **Zero Fake Thinking Steps:** Completely purged hardcoded client-side thinking steps (`planningStep`, `executionStep`) and artificial timer delays.
+    - **Real-Time Event Streaming:** Connected `store.py` and `MultiAgentService` to stream real lifecycle events (`agent_started`, `worker_assigned`, `files_changed`, `verification_started`, `verification`, `repair_requested`, `completed`, `blocked`) via `events.jsonl`.
+    - **Auditor Final Response Protocol:** The final post-completion report and merge confirmation are delivered exclusively by the **Auditor Agent** (`role: 'auditor'`), containing the actual verification verdict, critique summary, and actionable findings exported from `audit_report.json`.
+
+24. **Strict English-Only Invariant & Verified Agent Coordination Pipeline:**
+    - **100% English IDE Codebase:** Audited and scrubbed all Vietnamese text from `multiAgentService.ts`, `multiAgentChatControlView.ts`, buttons (`✓ Approve Plan`, `✕ Request Revision`, `✓ Accept Changes`, `✕ Reject`), placeholders, thinking descriptions, and notifications. Verified 0 non-English characters remain.
+    - **Codified System Invariants:** Enforced Section 6 (Strict English-Only Invariant) and Section 7 (Auditor Completion Protocol) in `AGENTS.md` and `ai/AGENTS.md`. Agents are strictly forbidden from ignoring user system overview requirements or guessing intent.
+    - **Live End-to-End Coordination Verification:** Tested real workflow execution (`5cf0ddbf1218`) driven by Python Hub Engine without simulation. Validated real Planner (`antigravity`), real Worker (`copilot`), and real Auditor (`antigravity`) delivering `audit_report.json` (`verdict: "approve"`), `AUDIT_REPORT.md`, and real-time lifecycle event logs in `events.jsonl`.
+
+25. **Ponytail Audit & Single Source of Truth Cleanup:**
+    - **Eliminated Split-Brain Duplicates:** Purged all redundant TypeScript source files from `src/stable/src/vs/` (`multiAgentService.ts`, `multiAgentChatControlView.ts`, `multiAgentCockpit.ts`, `agentMultiDiffSourceResolver.ts`, `layout.ts`, `workbench.common.main.ts`).
+    - **Upstream VSCodium Architecture Alignment:** `src/stable/` now cleanly mirrors `src/insider/` by retaining only branding assets (`resources/` and branding SVGs).
+    - **Staged Removal of Legacy Extension:** Fully staged removal of deprecated `src/stable/extensions/multi-agent-harness` files in git.
+    - **Single Source of Truth:** Consolidated all Code-OSS native source files strictly inside `vscode/src/vs/workbench/contrib/multiAgent/`, verified by 100% clean compilation (`compile-client` 0 errors).
+
+26. **Universal Workspace Dispatch, Antigravity Chat UI & Open VSX Discovery:**
+    - **Open VSX Marketplace Fix:** Adjusted `workbench.views.extensions.popular` in `extensionsViewlet.ts` so Popular extensions from Open VSX are discoverable immediately even when extensions are already installed.
+    - **Universal Workspace Dispatch:** Upgraded `multiAgentService.ts` and `hub.py run` with dynamic project identification (`StorageLayout.getProjectSlug`, `hub.py here`), absolute script paths, full `PATH` and `PYTHONPATH` environments, and added `--force` option to replace stale workflows safely.
+    - **Google Antigravity Chat Aesthetic:** Redesigned `MultiAgentChatControlView.ts` with borderless container, `#1e2638` smooth user bubbles, role-accented agent bubbles, collapsible `Thinking (Xs) ⌵` accordion with streaming timer and timeline border, floating input capsule card with `Ctrl+Enter` shortcut, and agent swarm swimlanes with active status dots.
+    - **Reconnected Pre-existing Features:** Added QuickPick CLI account authentication (`agy`, `copilot`, `codex`, `claude`), Doctor health check dialog (`hub.py doctor`), clear session action, and registered configuration settings schema in `multiAgent.contribution.ts`.
+    - **Build Verification:** Tested `npm run compile-client` with 0 TypeScript errors and updated upstream patch `patches/90-multi-agent-tier1-cockpit.patch`.
+
+27. **Antigravity Chat Input Replication, Single Settings Header & Chat > Agent Native Integration:**
+    - **Google Antigravity Floating Input Card:** Faithfully replicated Antigravity IDE input design:
+      - Auto-expanding borderless textarea with placeholder `"Assign objective to Swarm... (@ to mention, / for actions)"`.
+      - Integrated Codicon icons: left `+` button (`Codicon.add`), Model/Swarm indicator pill (`Codicon.sparkle` + `Multi-Agent Swarm`), right circular action button (`width: 28px; height: 28px; border-radius: 50%`).
+      - Dynamic Send/Stop states: renders blue circle with `Codicon.arrowUp` when idle/ready, transforms into red circle with `Codicon.debugStop` during active swarm execution.
+      - Eliminated all redundant text buttons (`Dispatch Swarm`, `Stop`, `Ctrl+Enter to dispatch`) in favor of clean Codicons.
+    - **Minimalist Header Action Toolbar:**
+      - Condensed header down to **1 single Settings gear button** (`Codicon.settingsGear`).
+      - Clicking opens native Settings window directly at `Chat > Agent` (`workbench.action.openSettings`, `'chat.agent'`).
+      - Swarm swimlane pills (`Arch`, `Worker`, `Audit`) are also interactive, opening Settings on click.
+    - **Native Settings Integration under `Chat > Agent` (`chat.agent.*`):**
+      - Registered schema properties matching the VS Code `Chat > Agent` settings layout: `chat.agent.architect`, `chat.agent.worker`, `chat.agent.auditor`, and `chat.agent.autopilot`.
+      - Embedded interactive markdown command links in setting descriptions: `[Authenticate CLI Accounts](command:workbench.action.multiAgent.loginAccount)` and `[Run Doctor Health Check](command:workbench.action.multiAgent.doctor)`.
+    - **Purged Meaningless Filler Messages:**
+      - Removed initial dummy system welcome message (`MA Chat & Control View initialized...`).
+      - Swarm chat stream starts 100% clean, displaying only actual user prompts, live streaming agent thinking steps, and real Auditor completion verdicts.
+    - **Codified Invariant in Rules:**
+      - Documented Section 12 in `AGENTS.md` and `ai/AGENTS.md` prior to implementation.
+    - **Verification & Zero Errors:**
+      - Recompiled VS Code client (`npm run compile-client` on Node v24) with 0 errors.
+      - Updated upstream patch `patches/90-multi-agent-tier1-cockpit.patch` (87KB).
+
 ## Verification & Status
-- **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client`).
-- **Extension TypeScript Compilation:** Passed with 0 errors (`npm run compile`).
-- **Unit Tests:** 21/21 tests passed (100% pass rate in `harness/tests`).
-- **MCP Socket IPC:** Verified real-time tool calling (`initialize`, `tools/list`, `tools/call`).
-- **Python Hub Daemon & CLI:** Verified via `harness/cli/hub.py`.
-- **Workspace Cleanliness:** Verified target projects remain completely clean without `.local` pollution.
+- **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client` on Node v24).
+- **Python Unit Tests:** 21/21 tests passed (100% pass rate in `harness/tests`).
+- **Live Binary Run:** Verified standalone launcher `./vscode/.build/electron/multi-agent-ide` boots cleanly.
+- **Upstream Patch:** Regenerated `patches/90-multi-agent-tier1-cockpit.patch` syncing all native workbench additions.
+- **Workspace Cleanliness:** Zero temporary root clutter. All brain artifacts isolated in `~/.multi-agent-ide/brain/`.
 
 
