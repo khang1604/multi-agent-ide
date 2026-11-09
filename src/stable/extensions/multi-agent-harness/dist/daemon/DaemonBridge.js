@@ -12,7 +12,7 @@ class DaemonBridge {
     projectRoot;
     static instance;
     hubScriptPath;
-    resolvedPythonBin = '/usr/bin/python3';
+    resolvedPythonBin = process.platform === 'win32' ? 'python' : '/usr/bin/python3';
     syncTimer;
     _onDidStatusChange = new vscode.EventEmitter();
     onDidStatusChange = this._onDidStatusChange.event;
@@ -31,16 +31,17 @@ class DaemonBridge {
             path.join(projectRoot, 'harness', 'cli', 'hub.py'),
         ].filter(Boolean);
         this.hubScriptPath = candidates.find(c => fsSync.existsSync(c)) || candidates[0];
+        const isWin = process.platform === 'win32';
         const pyCandidates = [
             process.env.PYTHON_BIN,
-            '/usr/bin/python3',
-            '/usr/local/bin/python3',
+            isWin ? 'python' : '/usr/bin/python3',
+            isWin ? 'py' : '/usr/local/bin/python3',
             '/bin/python3',
             'python3',
             'python'
         ].filter(Boolean);
         for (const py of pyCandidates) {
-            if (py.startsWith('/') && fsSync.existsSync(py)) {
+            if ((py.startsWith('/') || py.includes('\\') || py.includes('/')) && fsSync.existsSync(py)) {
                 this.resolvedPythonBin = py;
                 break;
             }
@@ -61,18 +62,22 @@ class DaemonBridge {
         }
     }
     async runHubCommand(args) {
+        const isWin = process.platform === 'win32';
+        const userHome = process.env.USERPROFILE || process.env.HOME || '';
         const fullPath = [
             process.env.PATH,
-            '/usr/local/bin',
-            '/usr/bin',
-            '/bin',
-            '/usr/local/sbin',
-            '/usr/sbin',
-            '/sbin',
-            path.join(process.env.HOME || '', '.local/bin'),
-            path.join(process.env.HOME || '', '.gemini/bin'),
-            path.join(process.env.HOME || '', '.cargo/bin'),
-        ].filter(Boolean).join(':');
+            !isWin ? '/usr/local/bin' : undefined,
+            !isWin ? '/usr/bin' : undefined,
+            !isWin ? '/bin' : undefined,
+            !isWin ? '/usr/local/sbin' : undefined,
+            !isWin ? '/usr/sbin' : undefined,
+            !isWin ? '/sbin' : undefined,
+            isWin ? path.join(userHome, 'AppData', 'Roaming', 'npm') : undefined,
+            isWin ? path.join(userHome, 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links') : undefined,
+            path.join(userHome, '.local', 'bin'),
+            path.join(userHome, '.gemini', 'bin'),
+            path.join(userHome, '.cargo', 'bin'),
+        ].filter(Boolean).join(path.delimiter);
         try {
             const { stdout } = await execFileAsync(this.resolvedPythonBin, [this.hubScriptPath, ...args], {
                 cwd: path.dirname(this.hubScriptPath),

@@ -570,13 +570,34 @@ function findCliBinary(name: string, doctor?: DoctorResult): string | undefined 
     const cmd = doctor.providers[name].command[0];
     if (fsSync.existsSync(cmd)) return cmd;
   }
-  const home = process.env.HOME || '';
+  const home = process.env.USERPROFILE || process.env.HOME || '';
   if (name === 'antigravity') {
-    const p = path.join(home, '.gemini', 'bin', 'agy');
-    if (fsSync.existsSync(p)) return p;
+    const candidates = [
+      path.join(home, '.gemini', 'bin', 'agy'),
+      path.join(home, '.gemini', 'bin', 'agy.cmd'),
+      path.join(home, '.gemini', 'bin', 'agy.exe'),
+      path.join(home, 'AppData', 'Local', 'agy', 'bin', 'agy.cmd'),
+      path.join(home, 'AppData', 'Local', 'Programs', 'Antigravity IDE', 'bin', 'agy.cmd'),
+    ];
+    for (const c of candidates) {
+      if (fsSync.existsSync(c)) return c;
+    }
   } else if (name === 'codex') {
-    const p = path.join(home, '.codex', 'plugins', '.plugin-appserver', 'codex');
-    if (fsSync.existsSync(p)) return p;
+    const candidates = [
+      path.join(home, '.codex', 'plugins', '.plugin-appserver', 'codex'),
+      path.join(home, '.codex', 'plugins', '.plugin-appserver', 'codex.exe'),
+    ];
+    for (const c of candidates) {
+      if (fsSync.existsSync(c)) return c;
+    }
+  } else if (name === 'copilot') {
+    const candidates = [
+      path.join(home, '.local', 'bin', 'copilot'),
+      path.join(home, 'AppData', 'Roaming', 'npm', 'copilot.cmd'),
+    ];
+    for (const c of candidates) {
+      if (fsSync.existsSync(c)) return c;
+    }
   }
   return undefined;
 }
