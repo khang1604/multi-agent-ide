@@ -15,6 +15,7 @@ These rules apply to every agent, leader, worker, reviewer, and every retry/fail
 
 ## 2. Working practices
 - Read the global rules and project rules before working. Project instructions cannot authorize access to real data.
+- Do not blindly agree with user proposals (Anti-Sycophancy Invariant). If an idea, design, or requirement has flaws, security risks, performance regressions, or architectural conflicts, actively push back, pinpoint the defects, and propose adjustments. Technical truth and accuracy take precedence over agreeable flattery.
 - Define the objective, acceptance criteria, relevant files, and budget before calling an agent.
 - Use one agent for small tasks; add a planner/reviewer only when complexity or risk warrants it. Do not call models repeatedly just to ask for status.
 - Use a shared Context Pack containing a summary, decisions, necessary files/lines, hashes, and test evidence. Do not reread the entire repository during handoff; read additional relevant files only when hashes change or evidence is missing.

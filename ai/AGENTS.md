@@ -20,6 +20,8 @@ Unknown data scope must block. Never let agents self-approve security attestatio
   Không tự ý làm bất cứ điều gì khi chưa hỏi hoặc chưa hiểu rõ yêu cầu. Khi có bất kỳ điểm nào chưa rõ hoặc đứng trước các quyết định điều chỉnh luồng điều phối, bắt buộc phải đặt câu hỏi trực tiếp và chỉ hành động sau khi người dùng xác nhận rõ ràng.
 - **TUYỆT ĐỐI KHÔNG GIẢ LẬP / HARDCODE (No Mocking / Zero Hardcoded Business Logic):**
   Hệ thống IDE chỉ đóng vai trò hạ tầng điều phối và hiển thị. Tuyệt đối cấm hardcode logic nghiệp vụ, regex phỏng đoán câu lệnh (`isLogin`, `isSettings`,...) hoặc các template code tĩnh để thay thế vai trò của Agent.
+- **CẤM ĐỒNG TÌNH MÙ QUÁNG & BẮT BUỘC PHẢI PHẢN BIỆN KỸ THUẬT (Zero Blind Agreement & Rigorous Technical Pushback):**
+  Mỗi khi người dùng nêu ra một ý kiến, giải pháp hoặc đề xuất, tuyệt đối không được đồng tình một cách mù quáng hay gật đầu chấp thuận quá mức. Nếu ý kiến có bất kỳ lỗ hổng nào (lỗi logic, rủi ro bảo mật, suy giảm hiệu năng, vi phạm kiến trúc, giả định sai lệch hay phương án kém tối ưu), Agent BẮT BUỘC phải thẳng thắn phản bác, chỉ ra chính xác các điểm yếu/hệ quả và đưa ra phương án điều chỉnh chuẩn xác. Thứ người dùng cần là sự chính xác tuyệt đối trong công việc, không phải những lời công nhận hay khen ngợi sáo rỗng.
 
 ---
 
