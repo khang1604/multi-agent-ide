@@ -190,10 +190,19 @@
       - Recompiled VS Code client (`npm run compile-client` on Node v24) with 0 errors.
       - Updated upstream patch `patches/90-multi-agent-tier1-cockpit.patch` (87KB).
 
+28. **Windows Cross-Platform Native Build & Standalone Setup Pipeline:**
+    - **Visual Studio C++ & MSBuild Toolset Automation:** Added pre-checks for Visual C++ Build Tools (`vswhere.exe`) and automated MSVC toolset resolution in `setup.ps1`.
+    - **Automated Native Patch Injection:** Configured `setup.ps1` to automatically apply `patches/00-settings-gallery.patch` (Open VSX) and `patches/90-multi-agent-tier1-cockpit.patch` (Tier 1 & Tier 2 Native Cockpit) idempotently.
+    - **Disabled Spectre Check & Configured Linker Paths:** Generated `vscode/Directory.Build.props` and `Directory.Build.targets` setting `<SpectreMitigation>false</SpectreMitigation>` and linked MSVC + Windows SDK 10 libraries (`delayimp.lib`, `kernel32.lib`) via `LIB` environment variable.
+    - **Automated Native Addon Builds:** Ensured all 7 core Windows native `.node` modules (`@vscode/policy-watcher`, `@vscode/spdlog`, `@vscode/sqlite3`, `@vscode/windows-process-tree`, `native-keymap`, `native-is-elevated`, `@parcel/watcher`) are compiled via `node-gyp`.
+    - **Downloaded Electron Binary:** Automated pre-downloading `vscode/.build/electron/Multi Agent IDE.exe` (239MB) to enable instant GUI launching.
+    - **Verified Standalone Windows Execution:** Tested `.\run.ps1` and `run.bat` — verified clean native boot with `StorageMainService` and 489 CSS modules loaded without error.
+
 ## Verification & Status
 - **Client TypeScript Compilation:** Passed with 0 errors (`npm run compile-client` on Node v24).
+- **Windows Native Addons:** 100% compiled and verified (`.node` binaries loaded successfully).
 - **Python Unit Tests:** 21/21 tests passed (100% pass rate in `harness/tests`).
-- **Live Binary Run:** Verified standalone launcher `./vscode/.build/electron/multi-agent-ide` boots cleanly.
+- **Live Binary Run:** Verified standalone launcher `run.ps1` / `run.bat` boots cleanly on Windows (`Multi Agent IDE.exe`).
 - **Upstream Patch:** Regenerated `patches/90-multi-agent-tier1-cockpit.patch` syncing all native workbench additions.
 - **Workspace Cleanliness:** Zero temporary root clutter. All brain artifacts isolated in `~/.multi-agent-ide/brain/`.
 
